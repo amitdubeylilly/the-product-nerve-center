@@ -1,0 +1,6 @@
+{
+  "entrypoint": "server.py",
+  "language": "python",
+  "data_env_var": "PM_AGENT_DATA",
+  "tools": ["prioritize_backlog", "analyze_feedback", "assess_capacity", "map_dependencies"]
+}
