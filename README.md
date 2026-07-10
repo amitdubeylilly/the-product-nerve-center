@@ -4,6 +4,7 @@ Challenge workspace for the PM Agent MCP Olympics problem set.
 
 ## Quick Links
 
+- [challenge-brief.md](challenge-brief.md): full challenge statement and scoring rubric.
 - [CLAUDE.md](CLAUDE.md): auto-loaded project context for new Claude chats.
 - [SKILL.md](SKILL.md): implementation playbook for the 4 required tools.
 - [KNOWLEDGE.md](KNOWLEDGE.md): consolidated challenge context, data contract, and discovery notes.
