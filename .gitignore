@@ -19,3 +19,8 @@ bin-release/
 
 # macOS metadata
 .DS_Store
+
+# Python virtualenv
+.venv/
+__pycache__/
+*.pyc

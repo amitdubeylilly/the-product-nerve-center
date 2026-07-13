@@ -1,0 +1,13 @@
+[
+  {
+    "name": "SampleA", "role": "engineer", "squad": "core",
+    "total_capacity_points": 21, "sprint_allocation_percent": 100, "pto_days_this_sprint": 0,
+    "skills": ["backend"], "carry_over_items": [], "current_sprint_assignments": []
+  },
+  {
+    "name": "SampleB", "role": "engineer", "squad": "experience",
+    "total_capacity_points": 21, "sprint_allocation_percent": 50, "pto_days_this_sprint": 2,
+    "skills": ["frontend"], "carry_over_items": [{"id": "SMP-2", "points": 3, "status": "in_progress"}],
+    "current_sprint_assignments": ["SMP-2"]
+  }
+]

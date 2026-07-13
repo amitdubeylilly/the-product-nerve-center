@@ -1,0 +1,80 @@
+[
+  {
+    "sprint_id": "S-41",
+    "sprint_number": 41,
+    "start_date": "2026-02-02",
+    "end_date": "2026-02-13",
+    "planned_points": 55,
+    "completed_points": 42,
+    "items_planned": 12,
+    "items_completed": 9,
+    "items_carried_over": 3,
+    "velocity": 42,
+    "notes": "Stable sprint. Two items deprioritized mid-sprint due to shifting customer escalation."
+  },
+  {
+    "sprint_id": "S-42",
+    "sprint_number": 42,
+    "start_date": "2026-02-16",
+    "end_date": "2026-02-27",
+    "planned_points": 50,
+    "completed_points": 38,
+    "items_planned": 11,
+    "items_completed": 8,
+    "items_carried_over": 3,
+    "velocity": 38,
+    "notes": "Authentication revamp took longer than estimated. Webhook system also overran by 3 points."
+  },
+  {
+    "sprint_id": "S-43",
+    "sprint_number": 43,
+    "start_date": "2026-03-02",
+    "end_date": "2026-03-13",
+    "planned_points": 48,
+    "completed_points": 45,
+    "items_planned": 18,
+    "items_completed": 17,
+    "items_carried_over": 1,
+    "velocity": 45,
+    "notes": "High completion rate. Included 8 zero-point tech debt items (linting fixes, dependency updates, test coverage improvements) that inflated item count but not point total."
+  },
+  {
+    "sprint_id": "S-44",
+    "sprint_number": 44,
+    "start_date": "2026-03-16",
+    "end_date": "2026-03-27",
+    "planned_points": 52,
+    "completed_points": 40,
+    "items_planned": 11,
+    "items_completed": 9,
+    "items_carried_over": 2,
+    "velocity": 40,
+    "notes": "Normal sprint. API rate limiting foundation completed ahead of schedule. Mobile layouts carried over."
+  },
+  {
+    "sprint_id": "S-45",
+    "sprint_number": 45,
+    "start_date": "2026-03-30",
+    "end_date": "2026-04-10",
+    "planned_points": 55,
+    "completed_points": 44,
+    "items_planned": 12,
+    "items_completed": 10,
+    "items_carried_over": 2,
+    "velocity": 44,
+    "notes": "Good sprint overall. Audit log infrastructure completed. Two growth items carried over due to frontend complexity."
+  },
+  {
+    "sprint_id": "S-46",
+    "sprint_number": 46,
+    "start_date": "2026-04-13",
+    "end_date": "2026-04-24",
+    "planned_points": 50,
+    "completed_points": 36,
+    "items_planned": 11,
+    "items_completed": 7,
+    "items_carried_over": 4,
+    "velocity": 36,
+    "notes": "Velocity dip caused by Tao's mid-sprint reassignment to Infra Team migration. Lost ~10 points of capacity from Growth squad. Four items carried into Sprint 47."
+  }
+]
