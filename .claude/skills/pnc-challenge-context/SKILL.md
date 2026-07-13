@@ -14,7 +14,7 @@ Quickly establish the challenge constraints and avoid invalid implementations.
 1. SKILL.md
 2. KNOWLEDGE.md
 3. PNC_Challenge_data/mcp_starter/README.md
-4. PNC_Challenge_data/data/data_dictionary.md
+4. data/data_dictionary.md
 5. PNC_Challenge_data/oracle_connection/README.md
 
 ## Required Deliverable

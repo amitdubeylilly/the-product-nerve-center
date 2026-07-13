@@ -16,7 +16,7 @@ Read these first in new chats:
 - SKILL.md
 - KNOWLEDGE.md
 - PNC_Challenge_data/mcp_starter/README.md
-- PNC_Challenge_data/data/data_dictionary.md
+- data/data_dictionary.md
 - PNC_Challenge_data/oracle_connection/README.md
 
 ## Non-Negotiable Constraints
@@ -28,9 +28,9 @@ Read these first in new chats:
 
 ## Code Locations
 
-- Starter server: PNC_Challenge_data/mcp_starter/server.py
-- Tool modules: PNC_Challenge_data/mcp_starter/tools/
-- Local sample data: PNC_Challenge_data/data/
+- Server entry point: server.py
+- Tool modules: tools/
+- Local sample data: data/
 
 ## Expected Working Style
 

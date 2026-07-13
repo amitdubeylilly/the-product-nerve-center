@@ -1,6 +1,0 @@
-[
-  {"source_item_id": "SMP-1", "target_item_id": "SMP-2", "dependency_type": "blocks",
-   "external_team": null, "external_eta": null, "notes": "sample edge for local testing"},
-  {"source_item_id": "SMP-3", "target_item_id": "EXT-9", "dependency_type": "external",
-   "external_team": "Sample Team", "external_eta": "TBD", "notes": "sample external edge"}
-]
