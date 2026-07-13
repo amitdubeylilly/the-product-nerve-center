@@ -8,6 +8,9 @@ PM Agent MCP server for the Claude Olympics challenge.
 - [CLAUDE.md](CLAUDE.md): auto-loaded project context for new Claude chats.
 - [SKILL.md](SKILL.md): implementation playbook for the 4 required tools.
 - [KNOWLEDGE.md](KNOWLEDGE.md): consolidated challenge context, data contract, and discovery notes.
+- [APPROACH_SUMMARY.md](APPROACH_SUMMARY.md): six-part technical decision log response draft.
+- [ORACLE_VERIFICATION_WORKBOOK.md](ORACLE_VERIFICATION_WORKBOOK.md): workbook to close oracle-rule verification.
+- [SUBMISSION_ARTIFACTS_CHECKLIST.md](SUBMISSION_ARTIFACTS_CHECKLIST.md): final artifact readiness tracker.
 
 ## Submission Structure
 
