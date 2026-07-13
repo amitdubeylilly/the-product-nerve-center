@@ -24,3 +24,4 @@ bin-release/
 .venv/
 __pycache__/
 *.pyc
+.coverage

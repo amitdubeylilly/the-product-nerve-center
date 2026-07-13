@@ -26,51 +26,143 @@ from typing import Optional
 
 THEME_KEYWORDS: dict[str, list[str]] = {
     "authentication_security": [
-        "auth", "login", "jwt", "token", "sso", "saml", "password",
-        "security", "mfa", "2fa", "session", "credential",
+        "auth",
+        "login",
+        "jwt",
+        "token",
+        "sso",
+        "saml",
+        "password",
+        "security",
+        "mfa",
+        "2fa",
+        "session",
+        "credential",
     ],
     "api_integrations": [
-        "api", "webhook", "integration", "endpoint", "rest", "graphql",
-        "sdk", "rate limit", "versioning", "oauth",
+        "api",
+        "webhook",
+        "integration",
+        "endpoint",
+        "rest",
+        "graphql",
+        "sdk",
+        "rate limit",
+        "versioning",
+        "oauth",
     ],
     "performance": [
-        "slow", "performance", "load", "latency", "speed", "timeout",
-        "fast", "dashboard", "loading", "lag", "response time",
+        "slow",
+        "performance",
+        "load",
+        "latency",
+        "speed",
+        "timeout",
+        "fast",
+        "dashboard",
+        "loading",
+        "lag",
+        "response time",
     ],
     "cicd_pipeline": [
-        "pipeline", "ci", "cd", "deploy", "deployment", "build",
-        "trigger", "stage", "workflow", "release",
+        "pipeline",
+        "ci",
+        "cd",
+        "deploy",
+        "deployment",
+        "build",
+        "trigger",
+        "stage",
+        "workflow",
+        "release",
     ],
     "analytics_reporting": [
-        "analytics", "report", "metric", "insight", "data", "export",
-        "csv", "chart", "graph", "visibility",
+        "analytics",
+        "report",
+        "metric",
+        "insight",
+        "data",
+        "export",
+        "csv",
+        "chart",
+        "graph",
+        "visibility",
     ],
     "notifications_alerts": [
-        "notification", "alert", "email", "slack", "pager",
-        "escalation", "on-call", "oncall", "notify",
+        "notification",
+        "alert",
+        "email",
+        "slack",
+        "pager",
+        "escalation",
+        "on-call",
+        "oncall",
+        "notify",
     ],
     "onboarding_ux": [
-        "onboarding", "setup", "wizard", "tooltip", "ux", "ui",
-        "mobile", "responsive", "first-run", "first run", "usability",
+        "onboarding",
+        "setup",
+        "wizard",
+        "tooltip",
+        "ux",
+        "ui",
+        "mobile",
+        "responsive",
+        "first-run",
+        "first run",
+        "usability",
     ],
     "compliance_audit": [
-        "audit", "compliance", "soc", "gdpr", "log", "immutable",
-        "retention", "rbac", "role", "access control",
+        "audit",
+        "compliance",
+        "soc",
+        "gdpr",
+        "log",
+        "immutable",
+        "retention",
+        "rbac",
+        "role",
+        "access control",
     ],
     "infrastructure_reliability": [
-        "infra", "infrastructure", "reliability", "uptime", "availability",
-        "sla", "kubernetes", "k8s", "downtime", "incident",
+        "infra",
+        "infrastructure",
+        "reliability",
+        "uptime",
+        "availability",
+        "sla",
+        "kubernetes",
+        "k8s",
+        "downtime",
+        "incident",
     ],
     "search": [
-        "search", "index", "elasticsearch", "find", "query", "filter",
+        "search",
+        "index",
+        "elasticsearch",
+        "find",
+        "query",
+        "filter",
     ],
     "incident_management": [
-        "incident", "escalation", "response", "manual", "automated",
-        "runbook", "pagerduty", "on-call",
+        "incident",
+        "escalation",
+        "response",
+        "manual",
+        "automated",
+        "runbook",
+        "pagerduty",
+        "on-call",
     ],
     "collaboration_access": [
-        "team", "collaboration", "comment", "share", "permission",
-        "access", "role", "member",
+        "team",
+        "collaboration",
+        "comment",
+        "share",
+        "permission",
+        "access",
+        "role",
+        "member",
     ],
 }
 
@@ -83,6 +175,7 @@ TIER_SKEW_THRESHOLD = 0.60
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _word_set(text: str) -> set[str]:
     return set(re.findall(r"[a-z]+", text.lower()))
@@ -159,27 +252,31 @@ def _bias_warnings(entries: list, total: int) -> list[dict]:
     for cid, cnt in cust_counts.items():
         pct = cnt / total
         if pct > VOLUME_SKEW_THRESHOLD:
-            warnings.append({
-                "type": "volume_skew",
-                "customer_id": cid,
-                "message": (
-                    f"Customer {cid} accounts for {round(pct * 100, 1)}% of feedback "
-                    f"({cnt}/{total}). Themes may be biased toward their use case."
-                ),
-            })
+            warnings.append(
+                {
+                    "type": "volume_skew",
+                    "customer_id": cid,
+                    "message": (
+                        f"Customer {cid} accounts for {round(pct * 100, 1)}% of feedback "
+                        f"({cnt}/{total}). Themes may be biased toward their use case."
+                    ),
+                }
+            )
 
     # Churned signal
     churned = sum(1 for e in entries if e.get("customer_status") == "churned")
     if total > 0 and churned / total > CHURNED_THRESHOLD:
-        warnings.append({
-            "type": "churned_signal",
-            "churned_count": churned,
-            "total": total,
-            "message": (
-                f"{round(churned / total * 100, 1)}% of feedback ({churned}/{total}) is from "
-                "churned customers. Their priorities may not reflect current customer needs."
-            ),
-        })
+        warnings.append(
+            {
+                "type": "churned_signal",
+                "churned_count": churned,
+                "total": total,
+                "message": (
+                    f"{round(churned / total * 100, 1)}% of feedback ({churned}/{total}) is from "
+                    "churned customers. Their priorities may not reflect current customer needs."
+                ),
+            }
+        )
 
     # Tier skew
     tier_counts: dict[str, int] = defaultdict(int)
@@ -187,14 +284,16 @@ def _bias_warnings(entries: list, total: int) -> list[dict]:
         tier_counts[e.get("customer_tier", "unknown")] += 1
     for tier, cnt in tier_counts.items():
         if cnt / total > TIER_SKEW_THRESHOLD:
-            warnings.append({
-                "type": "tier_skew",
-                "tier": tier,
-                "message": (
-                    f"Tier '{tier}' accounts for {round(cnt / total * 100, 1)}% of feedback "
-                    f"({cnt}/{total}). Verify this represents your target segment."
-                ),
-            })
+            warnings.append(
+                {
+                    "type": "tier_skew",
+                    "tier": tier,
+                    "message": (
+                        f"Tier '{tier}' accounts for {round(cnt / total * 100, 1)}% of feedback "
+                        f"({cnt}/{total}). Verify this represents your target segment."
+                    ),
+                }
+            )
 
     return warnings
 
@@ -202,6 +301,7 @@ def _bias_warnings(entries: list, total: int) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Main implementation
 # ---------------------------------------------------------------------------
+
 
 def analyze_feedback_impl(
     feedback: list,
@@ -262,15 +362,17 @@ def analyze_feedback_impl(
 
 
 def _aggregate_by_theme(unique_entries, dup_ids, top_n, total) -> dict:
-    theme_map: dict[str, dict] = defaultdict(lambda: {
-        "count": 0,
-        "customers": set(),
-        "entry_ids": [],
-        "churned_count": 0,
-        "arr_sum": 0,
-        "sentiment_sum": 0.0,
-        "tier_counts": defaultdict(int),
-    })
+    theme_map: dict[str, dict] = defaultdict(
+        lambda: {
+            "count": 0,
+            "customers": set(),
+            "entry_ids": [],
+            "churned_count": 0,
+            "arr_sum": 0,
+            "sentiment_sum": 0.0,
+            "tier_counts": defaultdict(int),
+        }
+    )
 
     for entry in unique_entries:
         for theme in entry["_themes"]:
@@ -293,17 +395,19 @@ def _aggregate_by_theme(unique_entries, dup_ids, top_n, total) -> dict:
     themes_out = []
     for theme, data in sorted_themes:
         n = data["count"]
-        themes_out.append({
-            "theme": theme,
-            "count": n,
-            "unique_customers": len(data["customers"]),
-            "representative_ids": data["entry_ids"][:3],
-            "avg_sentiment": round(data["sentiment_sum"] / n, 3) if n else 0.0,
-            "total_arr": data["arr_sum"],
-            "churned_count": data["churned_count"],
-            "churned_pct": round(data["churned_count"] / n * 100, 1) if n else 0.0,
-            "tier_breakdown": dict(data["tier_counts"]),
-        })
+        themes_out.append(
+            {
+                "theme": theme,
+                "count": n,
+                "unique_customers": len(data["customers"]),
+                "representative_ids": data["entry_ids"][:3],
+                "avg_sentiment": round(data["sentiment_sum"] / n, 3) if n else 0.0,
+                "total_arr": data["arr_sum"],
+                "churned_count": data["churned_count"],
+                "churned_pct": round(data["churned_count"] / n * 100, 1) if n else 0.0,
+                "tier_breakdown": dict(data["tier_counts"]),
+            }
+        )
 
     return {
         "themes": themes_out,
@@ -315,16 +419,18 @@ def _aggregate_by_theme(unique_entries, dup_ids, top_n, total) -> dict:
 
 
 def _aggregate_by_customer(unique_entries, dup_ids, top_n) -> dict:
-    customer_map: dict[str, dict] = defaultdict(lambda: {
-        "name": "",
-        "tier": "",
-        "status": "",
-        "arr": 0,
-        "count": 0,
-        "themes": set(),
-        "entry_ids": [],
-        "sentiment_sum": 0.0,
-    })
+    customer_map: dict[str, dict] = defaultdict(
+        lambda: {
+            "name": "",
+            "tier": "",
+            "status": "",
+            "arr": 0,
+            "count": 0,
+            "themes": set(),
+            "entry_ids": [],
+            "sentiment_sum": 0.0,
+        }
+    )
 
     for entry in unique_entries:
         cid = entry.get("customer_id", "unknown")
@@ -347,17 +453,19 @@ def _aggregate_by_customer(unique_entries, dup_ids, top_n) -> dict:
     customers_out = []
     for cid, data in sorted_customers:
         n = data["count"]
-        customers_out.append({
-            "customer_id": cid,
-            "customer_name": data["name"],
-            "tier": data["tier"],
-            "status": data["status"],
-            "arr": data["arr"],
-            "feedback_count": n,
-            "top_themes": sorted(data["themes"])[:5],
-            "avg_sentiment": round(data["sentiment_sum"] / n, 3) if n else 0.0,
-            "entry_ids": data["entry_ids"][:5],
-        })
+        customers_out.append(
+            {
+                "customer_id": cid,
+                "customer_name": data["name"],
+                "tier": data["tier"],
+                "status": data["status"],
+                "arr": data["arr"],
+                "feedback_count": n,
+                "top_themes": sorted(data["themes"])[:5],
+                "avg_sentiment": round(data["sentiment_sum"] / n, 3) if n else 0.0,
+                "entry_ids": data["entry_ids"][:5],
+            }
+        )
 
     total = len(unique_entries)
     return {

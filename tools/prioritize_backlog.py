@@ -34,6 +34,7 @@ EXECUTIVE_TAG = "executive-priority"
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _keywords(item: dict) -> set[str]:
     """All significant words from an item's title and tags."""
     words: set[str] = set()
@@ -70,6 +71,7 @@ def _days_since(date_str: str) -> int:
 # ---------------------------------------------------------------------------
 # Main implementation
 # ---------------------------------------------------------------------------
+
 
 def prioritize_backlog_impl(
     backlog: list,
@@ -153,24 +155,26 @@ def prioritize_backlog_impl(
                         flags.append(f"missing_dependency:{dep_id}")
                         has_unresolved_blocker = True
 
-        results.append({
-            "id": item["id"],
-            "title": item.get("title", ""),
-            "status": status,
-            "priority": priority,
-            "squad": item.get("squad_assignment", ""),
-            "effort_points": item.get("effort_points", 0),
-            "score": round(base_score, 4),
-            "score_components": {
-                "reach_customers": reach,
-                "impact": bv,
-                "confidence": round(conf, 2),
-                "effort": effort,
-                "priority_multiplier": PRIORITY_WEIGHT.get(priority, 2),
-            },
-            "flags": flags,
-            "has_unresolved_blocker": has_unresolved_blocker,
-        })
+        results.append(
+            {
+                "id": item["id"],
+                "title": item.get("title", ""),
+                "status": status,
+                "priority": priority,
+                "squad": item.get("squad_assignment", ""),
+                "effort_points": item.get("effort_points", 0),
+                "score": round(base_score, 4),
+                "score_components": {
+                    "reach_customers": reach,
+                    "impact": bv,
+                    "confidence": round(conf, 2),
+                    "effort": effort,
+                    "priority_multiplier": PRIORITY_WEIGHT.get(priority, 2),
+                },
+                "flags": flags,
+                "has_unresolved_blocker": has_unresolved_blocker,
+            }
+        )
 
     # Sort: blocked items pushed to bottom; then score desc; tie-break priority then id
     priority_rank = {"P0": 4, "P1": 3, "P2": 2, "P3": 1}

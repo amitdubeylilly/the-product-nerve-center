@@ -21,10 +21,10 @@ from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from tools.prioritize_backlog import prioritize_backlog_impl
 from tools.analyze_feedback import analyze_feedback_impl
 from tools.assess_capacity import assess_capacity_impl
 from tools.map_dependencies import map_dependencies_impl
+from tools.prioritize_backlog import prioritize_backlog_impl
 
 mcp = FastMCP("PM Agent")
 
@@ -61,8 +61,9 @@ try:
     SPRINT_HISTORY = _load("sprint_history.json")
     ROSTER = _load_with_fallback("team_roster.json", "sample_roster.json")
     DEPENDENCIES = _load_with_fallback("dependency_map.json", "sample_dependencies.json")
-except FileNotFoundError as exc:
+except FileNotFoundError as exc:  # pragma: no cover
     import sys
+
     print(f"STARTUP ERROR: {exc}", file=sys.stderr)
     sys.exit(1)
 
@@ -70,6 +71,7 @@ except FileNotFoundError as exc:
 # ---------------------------------------------------------------------------
 # Tool 1: prioritize_backlog
 # ---------------------------------------------------------------------------
+
 
 @mcp.tool()
 def prioritize_backlog(
@@ -127,6 +129,7 @@ def prioritize_backlog(
 # Tool 2: analyze_feedback
 # ---------------------------------------------------------------------------
 
+
 @mcp.tool()
 def analyze_feedback(
     group_by: str = "theme",
@@ -182,6 +185,7 @@ def analyze_feedback(
 # Tool 3: assess_capacity
 # ---------------------------------------------------------------------------
 
+
 @mcp.tool()
 def assess_capacity(
     squad: Optional[str] = None,
@@ -233,6 +237,7 @@ def assess_capacity(
 # ---------------------------------------------------------------------------
 # Tool 4: map_dependencies
 # ---------------------------------------------------------------------------
+
 
 @mcp.tool()
 def map_dependencies(
@@ -288,5 +293,5 @@ def map_dependencies(
 # Entry point
 # ---------------------------------------------------------------------------
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     mcp.run()

@@ -21,7 +21,7 @@ Cycle detection uses iterative DFS with a path set.
 Critical path is the longest blocks-chain across the requested item set.
 """
 
-from collections import deque, defaultdict
+from collections import defaultdict, deque
 from typing import Optional
 
 
@@ -111,28 +111,32 @@ def _trace_item(
             if dep_type == "external":
                 eta = edge.get("external_eta")
                 if not eta or eta == "TBD":
-                    risk_flags.append({
-                        "type": "external_no_eta",
-                        "item": target,
-                        "via": node,
-                        "team": edge.get("external_team", "unknown"),
-                        "message": (
-                            f"{target} is an external dependency with no confirmed ETA "
-                            f"(team: {edge.get('external_team', 'unknown')})."
-                        ),
-                    })
+                    risk_flags.append(
+                        {
+                            "type": "external_no_eta",
+                            "item": target,
+                            "via": node,
+                            "team": edge.get("external_team", "unknown"),
+                            "message": (
+                                f"{target} is an external dependency with no confirmed ETA "
+                                f"(team: {edge.get('external_team', 'unknown')})."
+                            ),
+                        }
+                    )
                 else:
-                    risk_flags.append({
-                        "type": "external_dependency",
-                        "item": target,
-                        "via": node,
-                        "team": edge.get("external_team", "unknown"),
-                        "eta": eta,
-                        "message": (
-                            f"{target} is an external dependency "
-                            f"(team: {edge.get('external_team', 'unknown')}, ETA: {eta})."
-                        ),
-                    })
+                    risk_flags.append(
+                        {
+                            "type": "external_dependency",
+                            "item": target,
+                            "via": node,
+                            "team": edge.get("external_team", "unknown"),
+                            "eta": eta,
+                            "message": (
+                                f"{target} is an external dependency "
+                                f"(team: {edge.get('external_team', 'unknown')}, ETA: {eta})."
+                            ),
+                        }
+                    )
 
             if target not in visited:
                 visited.add(target)
@@ -140,14 +144,16 @@ def _trace_item(
 
     chain_len = len(direct) + len(transitive)
     if chain_len >= 3:
-        risk_flags.append({
-            "type": "long_chain",
-            "chain_length": chain_len,
-            "message": (
-                f"{item_id} has a dependency chain of {chain_len} items, "
-                "increasing delivery risk."
-            ),
-        })
+        risk_flags.append(
+            {
+                "type": "long_chain",
+                "chain_length": chain_len,
+                "message": (
+                    f"{item_id} has a dependency chain of {chain_len} items, "
+                    "increasing delivery risk."
+                ),
+            }
+        )
 
     return {
         "item_id": item_id,
@@ -236,10 +242,12 @@ def map_dependencies_impl(
             ck = tuple(sorted(set(cycle)))
             if ck not in seen_cycle_keys:
                 seen_cycle_keys.add(ck)
-                all_cycles.append({
-                    "cycle": cycle,
-                    "message": f"Circular dependency: {' → '.join(cycle)}",
-                })
+                all_cycles.append(
+                    {
+                        "cycle": cycle,
+                        "message": f"Circular dependency: {' → '.join(cycle)}",
+                    }
+                )
 
     critical = _critical_path(item_ids, graph)
 
@@ -253,12 +261,10 @@ def map_dependencies_impl(
             "items_analyzed": len(item_ids),
             "total_unique_deps": sum(t["total_dependency_count"] for t in items_out),
             "external_risks": sum(
-                len([f for f in t["risk_flags"] if "external" in f["type"]])
-                for t in items_out
+                len([f for f in t["risk_flags"] if "external" in f["type"]]) for t in items_out
             ),
             "long_chains": sum(
-                1 for t in items_out
-                if any(f["type"] == "long_chain" for f in t["risk_flags"])
+                1 for t in items_out if any(f["type"] == "long_chain" for f in t["risk_flags"])
             ),
         },
     }

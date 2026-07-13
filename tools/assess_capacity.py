@@ -43,9 +43,7 @@ def _normalize(raw: dict) -> dict:
     # carry_over_points may be an integer or derived from a list of items
     carry_over = raw.get("carry_over_points")
     if carry_over is None:
-        carry_over = sum(
-            item.get("points", 0) for item in raw.get("carry_over_items", [])
-        )
+        carry_over = sum(item.get("points", 0) for item in raw.get("carry_over_items", []))
 
     return {
         "name": name,
@@ -95,7 +93,9 @@ def assess_capacity_impl(
             "engineers": [],
             "squad_totals": {},
             "team_totals": {"allocated": 0, "effective": 0, "available": 0, "engineer_count": 0},
-            "warnings": [{"type": "no_engineers", "message": f"No engineers found for squad='{squad}'."}],
+            "warnings": [
+                {"type": "no_engineers", "message": f"No engineers found for squad='{squad}'."}
+            ],
             "squad_filter": squad,
             "sprint_days": sprint_days,
             "capacity_formula": _formula_str(),
@@ -128,7 +128,12 @@ def assess_capacity_impl(
 
         sq = eng["squad"]
         if sq not in squad_buckets:
-            squad_buckets[sq] = {"allocated": 0.0, "effective": 0.0, "available": 0.0, "engineers": 0}
+            squad_buckets[sq] = {
+                "allocated": 0.0,
+                "effective": 0.0,
+                "available": 0.0,
+                "engineers": 0,
+            }
         sb = squad_buckets[sq]
         sb["engineers"] += 1
         if alloc > 0:  # 0 % engineers excluded from squad capacity totals
@@ -136,18 +141,20 @@ def assess_capacity_impl(
             sb["effective"] += effective
             sb["available"] += available
 
-        results.append({
-            "engineer": eng["name"],
-            "squad": sq,
-            "allocation_percent": alloc,
-            "pto_days": pto,
-            "skills": eng["skills"],
-            "allocated_capacity": allocated,
-            "effective_capacity": effective,
-            "carry_over_points": carry,
-            "available_capacity": available,
-            "warnings": eng_warnings,
-        })
+        results.append(
+            {
+                "engineer": eng["name"],
+                "squad": sq,
+                "allocation_percent": alloc,
+                "pto_days": pto,
+                "skills": eng["skills"],
+                "allocated_capacity": allocated,
+                "effective_capacity": effective,
+                "carry_over_points": carry,
+                "available_capacity": available,
+                "warnings": eng_warnings,
+            }
+        )
 
     # Deterministic ordering
     results.sort(key=lambda x: (x["squad"], x["engineer"]))
@@ -155,27 +162,48 @@ def assess_capacity_impl(
     # Global warnings
     overloaded = [r["engineer"] for r in results if any("overloaded" in w for w in r["warnings"])]
     if overloaded:
-        global_warnings.append({
-            "type": "overloaded_engineers",
-            "engineers": overloaded,
-            "message": f"{len(overloaded)} engineer(s) have carry-over exceeding effective capacity.",
-        })
-    zero_eff = [r["engineer"] for r in results if r["effective_capacity"] == 0 and r["allocation_percent"] > 0]
+        global_warnings.append(
+            {
+                "type": "overloaded_engineers",
+                "engineers": overloaded,
+                "message": (
+                    f"{len(overloaded)} engineer(s) have carry-over "
+                    "exceeding effective capacity."
+                ),
+            }
+        )
+    zero_eff = [
+        r["engineer"]
+        for r in results
+        if r["effective_capacity"] == 0 and r["allocation_percent"] > 0
+    ]
     if zero_eff:
-        global_warnings.append({
-            "type": "zero_effective_capacity",
-            "engineers": zero_eff,
-            "message": f"{len(zero_eff)} engineer(s) have zero effective capacity (full PTO coverage).",
-        })
+        global_warnings.append(
+            {
+                "type": "zero_effective_capacity",
+                "engineers": zero_eff,
+                "message": (
+                    f"{len(zero_eff)} engineer(s) have zero effective "
+                    "capacity (full PTO coverage)."
+                ),
+            }
+        )
     if required_skills:
-        mismatched = [r["engineer"] for r in results if any("skill_mismatch" in w for w in r["warnings"])]
+        mismatched = [
+            r["engineer"] for r in results if any("skill_mismatch" in w for w in r["warnings"])
+        ]
         if mismatched:
-            global_warnings.append({
-                "type": "skill_mismatch",
-                "engineers": mismatched,
-                "required_skills": required_skills,
-                "message": f"{len(mismatched)} engineer(s) are missing required skills: {required_skills}.",
-            })
+            global_warnings.append(
+                {
+                    "type": "skill_mismatch",
+                    "engineers": mismatched,
+                    "required_skills": required_skills,
+                    "message": (
+                        f"{len(mismatched)} engineer(s) are missing "
+                        f"required skills: {required_skills}."
+                    ),
+                }
+            )
 
     squad_totals_out = {
         sq: {
