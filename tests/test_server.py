@@ -128,3 +128,142 @@ class TestToolWrappers:
         r = server.map_dependencies(item_ids=[])
         assert "items" in r
         # impl-level validation still raises error; server fills ids before calling
+
+
+# ===========================================================================
+# _load_optional / _resolve
+# ===========================================================================
+
+
+class TestLoadOptionalAndResolve:
+    def test_load_optional_returns_list_when_present(self):
+        assert isinstance(server._load_optional("product_backlog.json"), list)
+
+    def test_load_optional_returns_empty_when_missing(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(server, "DATA_DIR", tmp_path)
+        assert server._load_optional("nope.json") == []
+
+    def test_resolve_prefers_fetched(self):
+        assert server._resolve([{"name": "X"}], "a.json", "b.json") == [{"name": "X"}]
+
+    def test_resolve_uses_primary_file_when_fetch_empty(self, tmp_path, monkeypatch):
+        (tmp_path / "p.json").write_text(json.dumps([{"name": "P"}]))
+        monkeypatch.setattr(server, "DATA_DIR", tmp_path)
+        assert server._resolve([], "p.json", "f.json") == [{"name": "P"}]
+
+    def test_resolve_returns_empty_when_nothing_available(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(server, "DATA_DIR", tmp_path)
+        assert server._resolve([], "p.json", "f.json") == []
+
+
+# ===========================================================================
+# Data-server response parsers (used by the startup fetch)
+# ===========================================================================
+
+
+class TestDataServerParsers:
+    def test_parse_members(self):
+        assert server._parse_members("Team members: Rao, Mira, Otto") == ["Rao", "Mira", "Otto"]
+
+    def test_parse_members_no_colon(self):
+        assert server._parse_members("garbage") == []
+
+    def test_parse_capacity(self):
+        out = server._parse_capacity(
+            "Rao — Capacity: 21 pts, Allocation: 100%, PTO this sprint: 0 days"
+        )
+        assert out == {
+            "total_capacity_points": 21.0,
+            "sprint_allocation_percent": 100,
+            "pto_days_this_sprint": 0,
+        }
+
+    def test_parse_capacity_unparseable(self):
+        assert server._parse_capacity("nothing here") == {}
+
+    def test_parse_profile(self):
+        assert server._parse_profile("Rao — Role: senior_engineer, Squad: core") == {
+            "role": "senior_engineer",
+            "squad": "core",
+        }
+
+    def test_parse_profile_missing(self):
+        assert server._parse_profile("Rao — no fields") == {"role": "", "squad": ""}
+
+    def test_parse_skills(self):
+        assert server._parse_skills("Rao — Skills: backend, infra") == ["backend", "infra"]
+
+    def test_parse_skills_none(self):
+        assert server._parse_skills("Rao — no skills line") == []
+
+    def test_parse_sprint_with_carry(self):
+        out = server._parse_sprint(
+            "Isa — Sprint assignments: NB-114, NB-115 | "
+            "Carry-over: NB-114 (6pts, in_progress), NB-115 (5pts, in_progress)"
+        )
+        assert out["current_sprint_assignments"] == ["NB-114", "NB-115"]
+        assert out["carry_over_items"] == [
+            {"id": "NB-114", "points": 6, "status": "in_progress"},
+            {"id": "NB-115", "points": 5, "status": "in_progress"},
+        ]
+
+    def test_parse_sprint_none(self):
+        out = server._parse_sprint("Otto — Sprint assignments: none | Carry-over: none")
+        assert out == {"current_sprint_assignments": [], "carry_over_items": []}
+
+    def test_parse_sprint_no_labels(self):
+        # neither "Carry-over:" nor "Sprint assignments:" present
+        assert server._parse_sprint("Rao — idle") == {
+            "current_sprint_assignments": [],
+            "carry_over_items": [],
+        }
+
+    def test_parse_item_deps_none(self):
+        assert server._parse_item_deps("NB-108", "NB-108 has no outgoing dependencies.") == []
+
+    def test_parse_item_deps_empty_text(self):
+        assert server._parse_item_deps("NB-108", "") == []
+
+    def test_parse_item_deps_no_type_keyword(self):
+        # target present but no type keyword -> defaults to "blocks", loop exhausts
+        edges = server._parse_item_deps("NB-120", "NB-120 relates NB-121")
+        assert edges[0]["target_item_id"] == "NB-121"
+        assert edges[0]["dependency_type"] == "blocks"
+
+    def test_parse_item_deps_populated(self):
+        # Defensive/assumed populated format — documents what the parser expects.
+        text = (
+            "NB-120 -> NB-121 (blocks); "
+            "NB-120 -> EXT-9 (external, team=Payments, eta=2026-07-01); junk"
+        )
+        edges = server._parse_item_deps("NB-120", text)
+        assert len(edges) == 2
+        assert edges[0]["target_item_id"] == "NB-121"
+        assert edges[0]["dependency_type"] == "blocks"
+        assert edges[0]["external_team"] is None
+        assert edges[0]["external_eta"] is None
+        assert edges[1]["target_item_id"] == "EXT-9"
+        assert edges[1]["dependency_type"] == "external"
+        assert edges[1]["external_team"] == "Payments"
+        assert edges[1]["external_eta"] == "2026-07-01"
+
+    def test_assemble_engineer(self):
+        rec = server._assemble_engineer(
+            "Rao",
+            {
+                "total_capacity_points": 21.0,
+                "sprint_allocation_percent": 100,
+                "pto_days_this_sprint": 0,
+            },
+            {"role": "senior_engineer", "squad": "core"},
+            ["backend", "infra"],
+            {
+                "current_sprint_assignments": ["NB-108"],
+                "carry_over_items": [{"id": "NB-108", "points": 5, "status": "in_progress"}],
+            },
+        )
+        assert rec["name"] == "Rao"
+        assert rec["squad"] == "core"
+        assert rec["total_capacity_points"] == 21.0
+        assert rec["skills"] == ["backend", "infra"]
+        assert rec["carry_over_items"][0]["points"] == 5

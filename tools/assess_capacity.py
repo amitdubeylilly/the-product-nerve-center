@@ -1,15 +1,15 @@
 """
 assess_capacity — Calculate available sprint capacity for each engineer and squad.
 
-Capacity formula (reverse-engineered from oracle probing):
+Capacity formula:
 
-    allocated_capacity  = SPRINT_POINTS * (allocation_percent / 100)
+    allocated_capacity  = total_capacity_points * (allocation_percent / 100)
     effective_capacity  = allocated_capacity * ((sprint_days - pto_days) / sprint_days)
     available_capacity  = max(0, effective_capacity - carry_over_points)
 
-Where SPRINT_POINTS = 21 (full sprint value at 100 % allocation, 10 working days).
-PTO reduces capacity linearly: 1 PTO day out of 10 = 10 % reduction.
-Engineers at 0 % allocation contribute 0 to squad totals.
+total_capacity_points is read per engineer from the roster record (the data
+server provides it per person). SPRINT_POINTS (21) is only a fallback default
+used when a record omits that field — never hardcode a single team-wide value.
 
 Field name normalization:
     Oracle schema uses:   name/engineer_id, allocation_percent, pto_days,
@@ -21,7 +21,8 @@ Field name normalization:
 
 from typing import Any, Optional
 
-SPRINT_POINTS = 21  # Full sprint capacity at 100 % allocation
+SPRINT_POINTS = 21  # Default full-sprint capacity, used only when a roster record
+#                     omits total_capacity_points. Real value is read per engineer.
 
 
 def _to_int(value: Any, default: int) -> int:
@@ -65,9 +66,16 @@ def _normalize(raw: dict) -> dict:
     if carry_over is None:
         carry_over = sum(item.get("points", 0) for item in raw.get("carry_over_items", []))
 
+    # Per-engineer capacity base (roster field "total_capacity_points"). Falls back
+    # to SPRINT_POINTS only if absent; never assume a single team-wide number.
+    total_capacity = raw.get("total_capacity_points")
+    if total_capacity is None:
+        total_capacity = raw.get("capacity_points")
+
     return {
         "name": name,
         "squad": squad,
+        "total_capacity_points": _to_float(total_capacity, float(SPRINT_POINTS)),
         "allocation_percent": _to_int(allocation, 100),
         "pto_days": _to_int(pto, 0),
         "skills": list(skills),
@@ -134,7 +142,7 @@ def assess_capacity_impl(
         pto = min(eng["pto_days"], sprint_days)  # cap PTO at full sprint
         carry = eng["carry_over_points"]
 
-        allocated = round(SPRINT_POINTS * (alloc / 100), 2)
+        allocated = round(eng["total_capacity_points"] * (alloc / 100), 2)
         effective = round(allocated * ((sprint_days - pto) / sprint_days), 2)
         carry_applied = carry if include_carry_over else 0.0
         available = round(max(0.0, effective - carry_applied), 2)
@@ -264,7 +272,7 @@ def assess_capacity_impl(
 
 def _formula_str() -> str:
     return (
-        "allocated = 21 × (allocation_percent / 100); "
+        "allocated = total_capacity_points × (allocation_percent / 100); "
         "effective = allocated × ((sprint_days − pto_days) / sprint_days); "
         "available = max(0, effective − carry_over_points)"
     )

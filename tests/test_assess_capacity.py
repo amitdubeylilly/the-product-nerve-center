@@ -312,7 +312,7 @@ class TestAssessCapacityImpl:
     def test_capacity_formula_in_output(self):
         r = assess_capacity_impl([_oracle_eng()])
         assert "capacity_formula" in r
-        assert "21" in r["capacity_formula"]
+        assert "total_capacity_points" in r["capacity_formula"]
 
 
 # ===========================================================================
@@ -325,5 +325,33 @@ class TestFormulaStr:
         s = _formula_str()
         assert isinstance(s, str)
         assert len(s) > 0
-        assert "21" in s
+        assert "total_capacity_points" in s
         assert "allocation" in s
+
+
+# ===========================================================================
+# Per-engineer total_capacity_points (no hardcoded 21)
+# ===========================================================================
+
+
+class TestTotalCapacityPoints:
+    def test_uses_per_engineer_total_capacity_points(self):
+        eng = _sample_eng(
+            total_capacity_points=26, sprint_allocation_percent=100, pto_days_this_sprint=0
+        )
+        e = assess_capacity_impl(roster=[eng])["engineers"][0]
+        assert e["allocated_capacity"] == 26.0
+        assert e["available_capacity"] == 26.0
+
+    def test_defaults_to_sprint_points_when_absent(self):
+        eng = _sample_eng(sprint_allocation_percent=100, pto_days_this_sprint=0)
+        eng.pop("total_capacity_points", None)
+        e = assess_capacity_impl(roster=[eng])["engineers"][0]
+        assert e["allocated_capacity"] == float(SPRINT_POINTS)
+
+    def test_capacity_points_alias_when_total_absent(self):
+        eng = _sample_eng(sprint_allocation_percent=100, pto_days_this_sprint=0)
+        eng.pop("total_capacity_points", None)
+        eng["capacity_points"] = 30
+        e = assess_capacity_impl(roster=[eng])["engineers"][0]
+        assert e["allocated_capacity"] == 30.0
