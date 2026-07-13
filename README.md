@@ -14,10 +14,10 @@ PM Agent MCP server for the Claude Olympics challenge.
 ```
 the-product-nerve-center/
 ├── server.py            # MCP server entry point
-├── requirements.txt     # runtime dependencies (mcp, pydantic, httpx)
+├── requirements.txt     # runtime dependencies (mcp, pydantic)
 ├── requirements-dev.txt # dev dependencies (pytest, black, etc.)
 ├── agent_config.json    # grader contract (entry, run command, env vars)
-├── env_vars.json        # default env vars (PM_AGENT_DATA, MCP_DATA_URL)
+├── env_vars.json        # default env vars (PM_AGENT_DATA)
 ├── olympics.json        # tool contract (tool names, data_env_var)
 ├── tools/               # tool implementations
 │   ├── prioritize_backlog.py
@@ -25,14 +25,14 @@ the-product-nerve-center/
 │   ├── assess_capacity.py
 │   └── map_dependencies.py
 ├── data/                # local sample data for development
-├── tests/               # 176 tests, 100% branch coverage
+├── tests/               # 180 tests, 100% branch coverage
 └── pyproject.toml       # black / isort / mypy / pytest config
 ```
 
 ## Data Sources
 
-- `PM_AGENT_DATA` (env var): directory with `product_backlog.json`, `customer_feedback.json`, `sprint_history.json`.
-- `MCP_DATA_URL` (env var): MCP data server providing `team_roster` and `dependency_map`. Falls back to local sample files if unreachable.
+- `PM_AGENT_DATA` (env var): directory with `product_backlog.json`, `customer_feedback.json`, `sprint_history.json`, `team_roster.json`, and `dependency_map.json`.
+- Local development fallback is `./data` when `PM_AGENT_DATA` is not set.
 
 ## Local Development
 
@@ -43,14 +43,21 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
+## Validation Snapshot
+
+- Runtime data contract: reads from `PM_AGENT_DATA` with `./data` fallback for local development.
+- Runtime safety: no network/oracle calls in submitted server runtime path.
+- Tool contract: exact required tool names are exposed via `server.py` and `olympics.json`.
+- Quality status: 180 tests passing with 100% line and branch coverage.
+
 ## Tools
 
 | Tool | Type | Data Source |
 |---|---|---|
 | `prioritize_backlog` | judgment | local files |
 | `analyze_feedback` | judgment | local files |
-| `assess_capacity` | discovery | MCP data server |
-| `map_dependencies` | discovery | MCP data server |
+| `assess_capacity` | discovery | mounted files (`PM_AGENT_DATA`) |
+| `map_dependencies` | discovery | mounted files (`PM_AGENT_DATA`) |
 
 Important: tools compute from mounted data — no hardcoded IDs or sample values.
 

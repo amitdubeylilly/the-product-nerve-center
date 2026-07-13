@@ -3,19 +3,17 @@ PM Agent — MCP Server
 =====================
 Exposes four tools that help a PM make data-driven sprint decisions:
 
-  1. prioritize_backlog   — score and rank backlog items (judgment tool)
-  2. analyze_feedback     — extract themes from customer feedback (judgment tool)
-  3. assess_capacity      — calculate real sprint capacity per engineer (discovery tool)
-  4. map_dependencies     — trace dependency chains and surface risks (discovery tool)
+    1. prioritize_backlog   — score and rank backlog items (judgment tool)
+    2. analyze_feedback     — extract themes from customer feedback (judgment tool)
+    3. assess_capacity      — calculate real sprint capacity per engineer (discovery tool)
+    4. map_dependencies     — trace dependency chains and surface risks (discovery tool)
 
 DATA CONTRACT
 -------------
-Local files (backlog, feedback, sprint history) are read from PM_AGENT_DATA.
-Team roster and dependency map are fetched from the MCP data server at MCP_DATA_URL,
-falling back to local sample files if the server is unreachable.
+All runtime data is loaded from PM_AGENT_DATA (fallback: ./data for local dev).
+No runtime calls are made to Nimbus Oracle or other discovery services.
 """
 
-import asyncio
 import json
 import logging
 import os
@@ -23,8 +21,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from mcp import ClientSession
-from mcp.client.streamable_http import streamable_http_client
 from mcp.server.fastmcp import FastMCP
 
 from tools.analyze_feedback import analyze_feedback_impl
@@ -43,7 +39,7 @@ log = logging.getLogger("pm_agent")
 mcp = FastMCP("PM Agent")
 
 # ---------------------------------------------------------------------------
-# Local data — injected by eval agent via PM_AGENT_DATA
+# Runtime data — injected by eval agent via PM_AGENT_DATA
 # ---------------------------------------------------------------------------
 DATA_DIR = Path(os.environ.get("PM_AGENT_DATA", Path(__file__).parent / "data"))
 
@@ -69,64 +65,25 @@ def _load_with_fallback(primary: str, fallback: str) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Remote data — roster + deps via MCP data server at MCP_DATA_URL
-# ---------------------------------------------------------------------------
-MCP_DATA_URL = os.environ.get(
-    "MCP_DATA_URL",
-    "https://co-mcp-server-dev.apps-internal.lrl.lilly.com/mcp",
-)
-
-
-async def _fetch_from_mcp_server() -> dict:  # pragma: no cover
-    """Fetch team roster and dependency map from the remote MCP data server."""
-    async with streamable_http_client(MCP_DATA_URL) as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            roster_r = await session.call_tool("get_team_roster", {})
-            deps_r = await session.call_tool("get_dependency_map", {})
-    return {
-        "roster": json.loads(roster_r.content[0].text),
-        "deps": json.loads(deps_r.content[0].text),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Startup: load all data
+# Startup: load all datasets once
 # ---------------------------------------------------------------------------
 try:
     BACKLOG = _load("product_backlog.json")
     FEEDBACK = _load("customer_feedback.json")
     SPRINT_HISTORY = _load("sprint_history.json")
+    ROSTER = _load_with_fallback("team_roster.json", "sample_roster.json")
+    DEPENDENCIES = _load_with_fallback("dependency_map.json", "sample_dependencies.json")
     log.info(
-        "Local data: %d backlog items, %d feedback entries, %d sprints",
+        ("Loaded data: backlog=%d, feedback=%d, sprints=%d, roster=%d, " "dependencies=%d"),
         len(BACKLOG),
         len(FEEDBACK),
         len(SPRINT_HISTORY),
+        len(ROSTER),
+        len(DEPENDENCIES),
     )
 except FileNotFoundError as exc:  # pragma: no cover
     print(f"STARTUP ERROR: {exc}", file=sys.stderr)
     sys.exit(1)
-
-# Fetch roster + deps from MCP server; fall back to local files if unreachable
-try:
-    _mcp_data = asyncio.run(_fetch_from_mcp_server())  # pragma: no cover
-    ROSTER = _mcp_data["roster"]  # pragma: no cover
-    DEPENDENCIES = _mcp_data["deps"]  # pragma: no cover
-    log.info(  # pragma: no cover
-        "MCP data: %d roster entries, %d dependency edges",
-        len(ROSTER),
-        len(DEPENDENCIES),
-    )
-except Exception as _e:
-    log.warning("MCP server unreachable (%s) — falling back to local files", _e)
-    try:
-        ROSTER = _load_with_fallback("team_roster.json", "sample_roster.json")
-        DEPENDENCIES = _load_with_fallback("dependency_map.json", "sample_dependencies.json")
-        log.info("Fallback: %d roster entries, %d deps", len(ROSTER), len(DEPENDENCIES))
-    except Exception as _e2:  # pragma: no cover
-        log.warning("Local fallback also failed (%s) — using empty data", _e2)  # pragma: no cover
-        ROSTER = []  # pragma: no cover
-        DEPENDENCIES = []  # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
@@ -333,10 +290,4 @@ def map_dependencies(
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":  # pragma: no cover
-    if len(sys.argv) > 1 and sys.argv[1] == "http":
-        port = int(sys.argv[2]) if len(sys.argv) > 2 else 8000
-        mcp.settings.host = "127.0.0.1"
-        mcp.settings.port = port
-        mcp.run(transport="sse")
-    else:
-        mcp.run()
+    mcp.run()

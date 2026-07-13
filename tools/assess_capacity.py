@@ -19,9 +19,29 @@ Field name normalization:
     Both are handled transparently.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 SPRINT_POINTS = 21  # Full sprint capacity at 100 % allocation
+
+
+def _to_int(value: Any, default: int) -> int:
+    """Safely coerce values to int for mixed JSON field types."""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _to_float(value: Any, default: float) -> float:
+    """Safely coerce values to float for mixed JSON field types."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _normalize(raw: dict) -> dict:
@@ -48,10 +68,10 @@ def _normalize(raw: dict) -> dict:
     return {
         "name": name,
         "squad": squad,
-        "allocation_percent": int(allocation),
-        "pto_days": int(pto),
+        "allocation_percent": _to_int(allocation, 100),
+        "pto_days": _to_int(pto, 0),
         "skills": list(skills),
-        "carry_over_points": float(carry_over),
+        "carry_over_points": _to_float(carry_over, 0.0),
     }
 
 

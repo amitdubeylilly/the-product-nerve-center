@@ -8,6 +8,8 @@ from tools.assess_capacity import (
     SPRINT_POINTS,
     _formula_str,
     _normalize,
+    _to_float,
+    _to_int,
     assess_capacity_impl,
 )
 
@@ -42,6 +44,25 @@ def _sample_eng(**kw):
     }
     base.update(kw)
     return base
+
+
+# ===========================================================================
+# _to_int / _to_float
+# ===========================================================================
+
+
+class TestCoercionHelpers:
+    def test_to_int_returns_default_for_none(self):
+        assert _to_int(None, 7) == 7
+
+    def test_to_int_returns_default_for_invalid_value(self):
+        assert _to_int({}, 7) == 7
+
+    def test_to_float_returns_default_for_none(self):
+        assert _to_float(None, 3.5) == 3.5
+
+    def test_to_float_returns_default_for_invalid_value(self):
+        assert _to_float({}, 3.5) == 3.5
 
 
 # ===========================================================================

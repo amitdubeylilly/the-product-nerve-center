@@ -7,6 +7,6 @@
     "requirements": "requirements.txt",
     "env_file": "env_vars.json",
     "data_env_var": "PM_AGENT_DATA",
-    "required_env": ["MCP_DATA_URL"],
+    "required_env": [],
     "timeout_seconds": 30
 }
