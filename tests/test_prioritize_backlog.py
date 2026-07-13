@@ -351,3 +351,77 @@ class TestPrioritizeBacklogImpl:
         result = prioritize_backlog_impl(items, [], filters={"squad": "growth"})
         ids = {r["id"] for r in result["ranked_items"]}
         assert ids == {"BP-002"}
+
+    # --- filters: status / tags (regression: previously ignored) ---
+
+    def test_filters_status_string(self):
+        items = [
+            _item(id="BP-001", status="planned"),
+            _item(id="BP-002", status="in_progress"),
+        ]
+        result = prioritize_backlog_impl(items, [], filters={"status": "planned"})
+        ids = {r["id"] for r in result["ranked_items"]}
+        assert ids == {"BP-001"}
+
+    def test_filters_status_list(self):
+        items = [
+            _item(id="BP-001", status="planned"),
+            _item(id="BP-002", status="in_progress"),
+            _item(id="BP-003", status="proposed"),
+        ]
+        result = prioritize_backlog_impl(items, [], filters={"status": ["planned", "proposed"]})
+        ids = {r["id"] for r in result["ranked_items"]}
+        assert ids == {"BP-001", "BP-003"}
+
+    def test_filters_status_overrides_include_done(self):
+        # explicit status filter for "done" surfaces done items even though
+        # include_done defaults to False
+        items = [
+            _item(id="BP-001", status="done"),
+            _item(id="BP-002", status="planned"),
+        ]
+        result = prioritize_backlog_impl(items, [], filters={"status": "done"})
+        ids = {r["id"] for r in result["ranked_items"]}
+        assert ids == {"BP-001"}
+
+    def test_filters_tags_string(self):
+        items = [
+            _item(id="BP-001", tags=["Security"]),  # case-insensitive match
+            _item(id="BP-002", tags=["analytics"]),
+        ]
+        result = prioritize_backlog_impl(items, [], filters={"tags": "security"})
+        ids = {r["id"] for r in result["ranked_items"]}
+        assert ids == {"BP-001"}
+
+    def test_filters_tags_list_no_match_excluded(self):
+        items = [
+            _item(id="BP-001", tags=["security", "api"]),
+            _item(id="BP-002", tags=["analytics"]),
+        ]
+        result = prioritize_backlog_impl(items, [], filters={"tags": ["api", "mobile"]})
+        ids = {r["id"] for r in result["ranked_items"]}
+        assert ids == {"BP-001"}
+
+    # --- method fallback (regression: unknown silently used value_effort) ---
+
+    def test_unknown_method_defaults_to_rice(self):
+        item = _item(
+            id="BP-001",
+            title="auth",
+            tags=["auth"],
+            business_value_score=9,
+            confidence_score=9,
+            effort_points=3,
+            priority="P0",
+        )
+        fb = [_fb("C1", "auth login problem")]
+        result = prioritize_backlog_impl([item], fb, method="banana")
+        assert result["summary"]["method"] == "rice"
+        assert "method_warning" in result["summary"]
+        # reach-based (rice) scoring was applied, not value_effort
+        assert result["ranked_items"][0]["score_components"]["reach_customers"] == 1
+
+    def test_known_method_has_no_warning(self):
+        result = prioritize_backlog_impl([_item(id="BP-001")], [], method="value_effort")
+        assert "method_warning" not in result["summary"]
+        assert result["summary"]["method"] == "value_effort"

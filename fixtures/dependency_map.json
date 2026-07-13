@@ -1,0 +1,11 @@
+[
+  {"item_id":"BP-108","target_id":"BP-110","type":"blocks","external_team":null,"external_eta":null},
+  {"item_id":"BP-110","target_id":"BP-112","type":"blocks","external_team":null,"external_eta":null},
+  {"item_id":"BP-112","target_id":"BP-115","type":"blocks","external_team":null,"external_eta":null},
+  {"item_id":"BP-109","target_id":"BP-111","type":"soft","external_team":null,"external_eta":null},
+  {"item_id":"BP-110","target_id":"EXT-200","type":"external","external_team":"Payments","external_eta":"2026-07-01"},
+  {"item_id":"BP-112","target_id":"EXT-201","type":"external","external_team":"SecOps","external_eta":"TBD"},
+  {"item_id":"BP-120","target_id":"BP-121","type":"blocks","external_team":null,"external_eta":null},
+  {"item_id":"BP-121","target_id":"BP-122","type":"blocks","external_team":null,"external_eta":null},
+  {"item_id":"BP-122","target_id":"BP-120","type":"blocks","external_team":null,"external_eta":null}
+]

@@ -1,0 +1,10 @@
+[
+  {"engineer_id":"Nadia","squad":"platform","allocation_percent":100,"pto_days":0,"carry_over_points":0,"skills":["backend","infra"]},
+  {"engineer_id":"Omar","squad":"platform","allocation_percent":50,"pto_days":2,"carry_over_points":0,"skills":["backend","security"]},
+  {"engineer_id":"Priya","squad":"platform","allocation_percent":80,"pto_days":0,"carry_over_points":5,"skills":["backend","ml"]},
+  {"engineer_id":"Quinn","squad":"platform","allocation_percent":100,"pto_days":10,"carry_over_points":3,"skills":["frontend"]},
+  {"engineer_id":"Rhea","squad":"growth","allocation_percent":60,"pto_days":0,"carry_over_points":0,"skills":["frontend","mobile"]},
+  {"engineer_id":"Sam","squad":"growth","allocation_percent":100,"pto_days":0,"carry_over_points":15,"skills":["frontend"]},
+  {"engineer_id":"Tess","squad":"growth","allocation_percent":40,"pto_days":0,"carry_over_points":12,"skills":["backend"]},
+  {"engineer_id":"Uma","squad":"growth","allocation_percent":0,"pto_days":0,"carry_over_points":0,"skills":["security"]}
+]

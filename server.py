@@ -115,10 +115,14 @@ def prioritize_backlog(
     Unresolved blockers → flagged + sorted to bottom.
 
     Args:
-        method:                   "rice" (default) or "value_effort".
+        method:                   "rice" (default) or "value_effort". Unrecognized
+                                  values fall back to "rice".
         squad_filter:             Restrict to one squad name. None = all squads.
-        filters:                  Dict with optional keys: squad, status, tags.
-                                  Overrides squad_filter when "squad" key present.
+        filters:                  Dict with optional keys: squad, status, tags. Each of
+                                  status/tags accepts a string or list. filters["squad"]
+                                  overrides squad_filter; an explicit status filter
+                                  overrides include_done; tags match items having ANY
+                                  of the given tags.
         include_done:             Include status="done" items. Default False.
         include_dependency_check: Flag unresolved blockers. Default True.
         top_n:                    Return only top N items. None = all.
@@ -126,15 +130,15 @@ def prioritize_backlog(
     Returns ranked_items list with score, score_components, flags, and summary.
     """
     log.info("prioritize_backlog: method=%s filters=%s squad=%s", method, filters, squad_filter)
-    resolved_squad = squad_filter
-    if filters:
-        resolved_squad = filters.get("squad", resolved_squad)
+    # Delegate all filter reconciliation (squad / status / tags) to the impl so there
+    # is a single source of truth. filters["squad"] overrides squad_filter there.
     return prioritize_backlog_impl(
         backlog=BACKLOG,
         feedback=FEEDBACK,
         deps=DEPENDENCIES,
         method=method,
-        squad_filter=resolved_squad,
+        squad_filter=squad_filter,
+        filters=filters,
         include_done=include_done,
         include_dependency_check=include_dependency_check,
         top_n=top_n,

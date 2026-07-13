@@ -28,6 +28,7 @@ from typing import Optional
 PRIORITY_WEIGHT: dict[str, int] = {"P0": 4, "P1": 3, "P2": 2, "P3": 1}
 STALE_DAYS = 90
 EXECUTIVE_TAG = "executive-priority"
+KNOWN_METHODS = {"rice", "value_effort"}
 
 
 # ---------------------------------------------------------------------------
@@ -105,23 +106,44 @@ def prioritize_backlog_impl(
     all_ids = {item["id"] for item in backlog}
 
     # filters dict overrides individual params when present
+    status_filter: Optional[set] = None
+    tags_filter: Optional[set] = None
     if filters:
         squad_filter = filters.get("squad", squad_filter)
+        raw_status = filters.get("status")
+        if raw_status:
+            status_filter = {raw_status} if isinstance(raw_status, str) else set(raw_status)
+        raw_tags = filters.get("tags")
+        if raw_tags:
+            raw_tags = [raw_tags] if isinstance(raw_tags, str) else raw_tags
+            tags_filter = {t.lower() for t in raw_tags}
+
+    # Unknown scoring methods fall back to the documented default ("rice") rather
+    # than silently switching to value_effort.
+    effective_method = method if method in KNOWN_METHODS else "rice"
 
     results = []
     for item in backlog:
         status = item.get("status", "")
-        if not include_done and status == "done":
+        # An explicit status filter governs; otherwise apply the include_done rule.
+        if status_filter is not None:
+            if status not in status_filter:
+                continue
+        elif not include_done and status == "done":
             continue
         if squad_filter and item.get("squad_assignment") != squad_filter:
             continue
+        if tags_filter is not None:
+            item_tags = {t.lower() for t in item.get("tags", [])}
+            if not (tags_filter & item_tags):
+                continue
 
         effort = item.get("effort_points") or 1  # guard against 0 / None
         bv = item.get("business_value_score", 5)
         conf = (item.get("confidence_score", 5)) / 10.0
         reach = _feedback_reach(item, feedback)
 
-        if method == "rice":
+        if effective_method == "rice":
             base_score = (reach * bv * conf) / effort
         else:
             base_score = (bv * conf) / effort
@@ -201,7 +223,7 @@ def prioritize_backlog_impl(
 
     summary = {
         "total_ranked": len(results),
-        "method": method,
+        "method": effective_method,
         "squad_filter": squad_filter,
         "flags_summary": {
             "stale": sum(1 for r in results if "stale" in r["flags"]),
@@ -211,5 +233,7 @@ def prioritize_backlog_impl(
             "executive_priority": sum(1 for r in results if "executive-priority" in r["flags"]),
         },
     }
+    if method not in KNOWN_METHODS:
+        summary["method_warning"] = f"Unknown method '{method}'; defaulted to 'rice'."
 
     return {"ranked_items": results, "summary": summary}
