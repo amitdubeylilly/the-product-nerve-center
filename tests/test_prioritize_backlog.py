@@ -342,3 +342,12 @@ class TestPrioritizeBacklogImpl:
         assert s["stale"] == 1
         assert s["unestimated"] == 1
         assert s["executive_priority"] == 1
+
+    def test_filters_dict_overrides_squad_filter(self):
+        items = [
+            _item(id="BP-001", squad_assignment="platform"),
+            _item(id="BP-002", squad_assignment="growth"),
+        ]
+        result = prioritize_backlog_impl(items, [], filters={"squad": "growth"})
+        ids = {r["id"] for r in result["ranked_items"]}
+        assert ids == {"BP-002"}

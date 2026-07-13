@@ -8,17 +8,23 @@ Exposes four tools that help a PM make data-driven sprint decisions:
   3. assess_capacity      — calculate real sprint capacity per engineer (discovery tool)
   4. map_dependencies     — trace dependency chains and surface risks (discovery tool)
 
-DATA PATH CONTRACT
-------------------
-Data is read from the directory given by the PM_AGENT_DATA environment variable,
-falling back to ./data for local development.  Do NOT hardcode IDs or file paths.
+DATA CONTRACT
+-------------
+Local files (backlog, feedback, sprint history) are read from PM_AGENT_DATA.
+Team roster and dependency map are fetched from the MCP data server at MCP_DATA_URL,
+falling back to local sample files if the server is unreachable.
 """
 
+import asyncio
 import json
+import logging
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
 from mcp.server.fastmcp import FastMCP
 
 from tools.analyze_feedback import analyze_feedback_impl
@@ -26,10 +32,18 @@ from tools.assess_capacity import assess_capacity_impl
 from tools.map_dependencies import map_dependencies_impl
 from tools.prioritize_backlog import prioritize_backlog_impl
 
+logging.basicConfig(
+    stream=sys.stderr,
+    level=logging.INFO,
+    format="[PM-Agent] %(asctime)s %(levelname)s %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger("pm_agent")
+
 mcp = FastMCP("PM Agent")
 
 # ---------------------------------------------------------------------------
-# Data loading
+# Local data — injected by eval agent via PM_AGENT_DATA
 # ---------------------------------------------------------------------------
 DATA_DIR = Path(os.environ.get("PM_AGENT_DATA", Path(__file__).parent / "data"))
 
@@ -54,18 +68,65 @@ def _load_with_fallback(primary: str, fallback: str) -> list:
         return _load(fallback)
 
 
-# Load once at startup
+# ---------------------------------------------------------------------------
+# Remote data — roster + deps via MCP data server at MCP_DATA_URL
+# ---------------------------------------------------------------------------
+MCP_DATA_URL = os.environ.get(
+    "MCP_DATA_URL",
+    "https://co-mcp-server-dev.apps-internal.lrl.lilly.com/mcp",
+)
+
+
+async def _fetch_from_mcp_server() -> dict:  # pragma: no cover
+    """Fetch team roster and dependency map from the remote MCP data server."""
+    async with streamable_http_client(MCP_DATA_URL) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            roster_r = await session.call_tool("get_team_roster", {})
+            deps_r = await session.call_tool("get_dependency_map", {})
+    return {
+        "roster": json.loads(roster_r.content[0].text),
+        "deps": json.loads(deps_r.content[0].text),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Startup: load all data
+# ---------------------------------------------------------------------------
 try:
     BACKLOG = _load("product_backlog.json")
     FEEDBACK = _load("customer_feedback.json")
     SPRINT_HISTORY = _load("sprint_history.json")
-    ROSTER = _load_with_fallback("team_roster.json", "sample_roster.json")
-    DEPENDENCIES = _load_with_fallback("dependency_map.json", "sample_dependencies.json")
+    log.info(
+        "Local data: %d backlog items, %d feedback entries, %d sprints",
+        len(BACKLOG),
+        len(FEEDBACK),
+        len(SPRINT_HISTORY),
+    )
 except FileNotFoundError as exc:  # pragma: no cover
-    import sys
-
     print(f"STARTUP ERROR: {exc}", file=sys.stderr)
     sys.exit(1)
+
+# Fetch roster + deps from MCP server; fall back to local files if unreachable
+try:
+    _mcp_data = asyncio.run(_fetch_from_mcp_server())  # pragma: no cover
+    ROSTER = _mcp_data["roster"]  # pragma: no cover
+    DEPENDENCIES = _mcp_data["deps"]  # pragma: no cover
+    log.info(  # pragma: no cover
+        "MCP data: %d roster entries, %d dependency edges",
+        len(ROSTER),
+        len(DEPENDENCIES),
+    )
+except Exception as _e:
+    log.warning("MCP server unreachable (%s) — falling back to local files", _e)
+    try:
+        ROSTER = _load_with_fallback("team_roster.json", "sample_roster.json")
+        DEPENDENCIES = _load_with_fallback("dependency_map.json", "sample_dependencies.json")
+        log.info("Fallback: %d roster entries, %d deps", len(ROSTER), len(DEPENDENCIES))
+    except Exception as _e2:  # pragma: no cover
+        log.warning("Local fallback also failed (%s) — using empty data", _e2)  # pragma: no cover
+        ROSTER = []  # pragma: no cover
+        DEPENDENCIES = []  # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +138,7 @@ except FileNotFoundError as exc:  # pragma: no cover
 def prioritize_backlog(
     method: str = "rice",
     squad_filter: Optional[str] = None,
+    filters: Optional[dict] = None,
     include_done: bool = False,
     include_dependency_check: bool = True,
     top_n: Optional[int] = None,
@@ -84,41 +146,38 @@ def prioritize_backlog(
     """Score and rank backlog items to surface the highest-value work for the sprint.
 
     Use this tool when Asha asks questions like:
-      • "What should we work on next sprint?"
-      • "Which items have the most customer signal?"
-      • "Are there any stale or blocked items we should flag?"
-      • "Show me the top Platform squad items."
+      "What should we work on next sprint?", "Which items have the most customer
+      signal?", "Are there stale or blocked items?", "Show me Platform squad items."
 
     Scoring (method="rice"):
-        Reach      = unique customers whose feedback matches the item (proxy for audience size)
-        Impact     = business_value_score field (1–10)
-        Confidence = confidence_score / 10
-        Effort     = effort_points (treated as 1 when 0 to avoid division by zero)
-        RICE       = (Reach × Impact × Confidence) / Effort × priority_multiplier
-
-    Priority multipliers:  P0→4×  P1→3×  P2→2×  P3→1×
-    "executive-priority" tag boosts score by 20 % and raises a flag.
-    Items with unresolved blockers are sorted to the bottom of the list.
+        Reach × Impact × Confidence / Effort × priority_multiplier
+        Reach = unique customers whose feedback matches item keywords (proxy).
+        Impact = business_value_score (1-10). Confidence = confidence_score / 10.
+        Effort = effort_points (1 when 0). Priority: P0→4x P1→3x P2→2x P3→1x.
+    "executive-priority" tag → 1.2x score boost + flag.
+    Unresolved blockers → flagged + sorted to bottom.
 
     Args:
-        method:                   Scoring method. "rice" (default) or "value_effort".
-        squad_filter:             Restrict to one squad: "platform", "growth", or None
-                                  for all squads.
-        include_done:             Include items with status "done". Default False.
-        include_dependency_check: Flag items with unresolved dependencies and push
-                                  them to the bottom. Default True.
-        top_n:                    Return only the top N items. None returns all.
+        method:                   "rice" (default) or "value_effort".
+        squad_filter:             Restrict to one squad name. None = all squads.
+        filters:                  Dict with optional keys: squad, status, tags.
+                                  Overrides squad_filter when "squad" key present.
+        include_done:             Include status="done" items. Default False.
+        include_dependency_check: Flag unresolved blockers. Default True.
+        top_n:                    Return only top N items. None = all.
 
-    Returns a dict with:
-        ranked_items  – list ordered by score; each item includes id, title, status,
-                        priority, score, score_components, and flags
-        summary       – total ranked, flag counts (stale / unestimated / blocked / etc.)
+    Returns ranked_items list with score, score_components, flags, and summary.
     """
+    log.info("prioritize_backlog: method=%s filters=%s squad=%s", method, filters, squad_filter)
+    resolved_squad = squad_filter
+    if filters:
+        resolved_squad = filters.get("squad", resolved_squad)
     return prioritize_backlog_impl(
         backlog=BACKLOG,
         feedback=FEEDBACK,
+        deps=DEPENDENCIES,
         method=method,
-        squad_filter=squad_filter,
+        squad_filter=resolved_squad,
         include_done=include_done,
         include_dependency_check=include_dependency_check,
         top_n=top_n,
@@ -134,6 +193,8 @@ def prioritize_backlog(
 def analyze_feedback(
     group_by: str = "theme",
     customer_tier: Optional[str] = None,
+    source: Optional[str] = None,
+    time_range: Optional[dict] = None,
     include_churned: bool = True,
     top_n: int = 10,
     min_sentiment: Optional[float] = None,
@@ -141,40 +202,32 @@ def analyze_feedback(
     """Extract themes and patterns from customer feedback, with bias warnings.
 
     Use this tool when Asha asks questions like:
-      • "What are customers actually asking for?"
-      • "What do our enterprise customers complain about most?"
-      • "Are there recurring issues from churned accounts?"
-      • "Which customers are giving the most feedback?"
+      "What are customers asking for?", "What do enterprise customers complain about?",
+      "Any recurring issues from churned accounts?", "Who gives the most feedback?"
 
-    Near-duplicate entries (same customer, ≥ 70 % word overlap, within 14 days)
-    are excluded from theme counts to avoid signal inflation.
-
-    Bias warnings are raised for:
-      • volume_skew    — one customer accounts for > 25 % of filtered feedback
-      • churned_signal — churned customers account for > 20 % of feedback
-      • tier_skew      — one tier accounts for > 60 % of feedback
+    Near-duplicate detection: same customer + >=70% word overlap within 14 days.
+    Bias warnings: volume_skew (>25% from one customer), churned_signal (>20%),
+    tier_skew (>60% from one tier).
 
     Args:
-        group_by:        "theme" (default) groups by detected topic area;
-                         "customer" groups results by submitting customer.
-        customer_tier:   Filter to a tier: "enterprise", "mid_market", or "startup".
-                         None = all tiers.
-        include_churned: Include feedback from churned customers. Default True.
-                         Set False to focus on active / trial accounts.
-        top_n:           Number of top themes or customers to return. Default 10.
-        min_sentiment:   Optional lower-bound sentiment filter (-1.0 to 1.0).
-                         E.g. -0.5 to surface only strongly negative feedback.
+        group_by:        "theme" (default) or "customer" or "source".
+        customer_tier:   Filter: "enterprise", "mid_market", "startup". None = all.
+        source:          Filter by channel: "support_ticket", "nps_survey",
+                         "sales_call", "user_interview". None = all.
+        time_range:      Filter by date: {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}.
+        include_churned: Include churned customer feedback. Default True.
+        top_n:           Number of top themes / customers to return. Default 10.
+        min_sentiment:   Lower-bound sentiment filter (-1.0 to 1.0).
 
-    Returns a dict with:
-        themes / customers      – ranked results with counts, ARR, sentiment, tier breakdown
-        bias_warnings           – data-quality flags
-        duplicate_ids_excluded  – IDs removed as near-duplicates
-        total_entries_analyzed
+    Returns themes/customers with counts, ARR, sentiment, bias_warnings.
     """
+    log.info("analyze_feedback: group_by=%s tier=%s source=%s", group_by, customer_tier, source)
     return analyze_feedback_impl(
         feedback=FEEDBACK,
         group_by=group_by,
         customer_tier=customer_tier,
+        source=source,
+        time_range=time_range,
         include_churned=include_churned,
         top_n=top_n,
         min_sentiment=min_sentiment,
@@ -189,48 +242,44 @@ def analyze_feedback(
 @mcp.tool()
 def assess_capacity(
     squad: Optional[str] = None,
+    sprint_id: Optional[str] = None,
     sprint_days: int = 10,
+    include_carry_over: bool = True,
+    check_skill_fit: bool = False,
     required_skills: Optional[list] = None,
 ) -> dict:
     """Calculate real available sprint capacity per engineer and squad.
 
     Use this tool when Asha asks questions like:
-      • "Can we fit this into the sprint?"
-      • "How much capacity does the Platform squad have?"
-      • "Who is available for backend work this sprint?"
-      • "Are any engineers overloaded with carry-over?"
+      "Can we fit this into the sprint?", "How much capacity does Platform have?",
+      "Who is available for backend work?", "Are any engineers overloaded?"
 
-    Capacity formula (reverse-engineered from oracle probing):
+    Capacity formula (reverse-engineered from oracle):
         allocated  = 21 × (allocation_percent / 100)
-        effective  = allocated × ((sprint_days − pto_days) / sprint_days)
-        available  = max(0, effective − carry_over_points)
-
-    The constant 21 is the full sprint value at 100 % allocation for a 10-day sprint.
-    Engineers at 0 % allocation are included for visibility but excluded from totals.
-
-    Warnings are raised for:
-      • overloaded engineers (carry-over > effective capacity)
-      • engineers with zero effective capacity (full PTO)
-      • skill mismatches when required_skills is specified
+        effective  = allocated × ((sprint_days - pto_days) / sprint_days)
+        available  = max(0, effective - carry_over_points)
 
     Args:
-        squad:           Filter to one squad: "platform", "growth", etc. None = all.
+        squad:           Squad filter. "all" or None = all squads.
+        sprint_id:       Sprint identifier for context (informational).
         sprint_days:     Working days in the sprint. Default 10.
-        required_skills: Check whether engineers have all listed skills.
-                         E.g. ["backend", "security"]. None = no skill check.
+        include_carry_over: Deduct carry-over points from available. Default True.
+        check_skill_fit: Flag engineers missing skills for assigned items.
+        required_skills: Skills to check for. E.g. ["backend", "security"].
 
-    Returns a dict with:
-        engineers      – per-engineer breakdown (allocated / effective / available)
-        squad_totals   – aggregated by squad
-        team_totals    – across all squads in the result set
-        warnings       – overload, zero-capacity, and skill-mismatch alerts
-        capacity_formula – formula string for auditability
+    Returns per-engineer breakdown, squad_totals, team_totals, and warnings.
     """
+    log.info("assess_capacity: squad=%s sprint_id=%s days=%d", squad, sprint_id, sprint_days)
+    resolved_squad = None if squad == "all" else squad
     return assess_capacity_impl(
         roster=ROSTER,
-        squad=squad,
+        squad=resolved_squad,
         sprint_days=sprint_days,
+        include_carry_over=include_carry_over,
+        check_skill_fit=check_skill_fit,
         required_skills=required_skills,
+        sprint_id=sprint_id,
+        sprints=SPRINT_HISTORY,
     )
 
 
@@ -241,51 +290,41 @@ def assess_capacity(
 
 @mcp.tool()
 def map_dependencies(
-    item_ids: list,
+    item_ids: Optional[list] = None,
     max_depth: int = 5,
     include_soft: bool = True,
+    include_external: bool = True,
 ) -> dict:
     """Trace dependency chains, detect cycles, and surface delivery risks.
 
     Use this tool when Asha asks questions like:
-      • "What's blocking the API redesign?"
-      • "What does BP-109 depend on?"
-      • "Are there any circular dependencies?"
-      • "What is the critical path for the CI/CD milestone?"
+      "What's blocking the API redesign?", "What does BP-109 depend on?",
+      "Are there circular dependencies?", "What is the critical path?"
 
-    Each item's dependencies are traversed up to max_depth levels.
-    Dependency types:
-        blocks    hard blocker — must be resolved before work can start
-        soft      beneficial but not strictly required
-        external  depends on a team outside the squads; may carry ETA risk
-
-    Risk flags raised per item:
-        external_no_eta     external dependency with null or "TBD" ETA
-        external_dependency external dependency with a concrete ETA
-        long_chain          dependency chain ≥ 3 items
-
-    Cycle detection runs full DFS; the complete cycle path is reported.
-    Critical path is the longest chain of 'blocks' edges across all requested items.
+    Dependency types: blocks (hard blocker), soft (beneficial), external (outside squad).
+    Risk flags: external_no_eta, external_dependency, long_chain (>=3 deps).
+    Cycle detection reports the full cycle path.
+    Critical path = longest blocks chain across requested items.
 
     Args:
-        item_ids:     List of backlog item IDs to analyse (e.g. ["BP-109", "BP-112"]).
-                      Must be non-empty.
-        max_depth:    Maximum traversal depth for transitive dependencies. Default 5.
-        include_soft: If True (default), include soft dependencies in the trace.
-                      Set False to show only hard blockers and external dependencies.
+        item_ids:         List of backlog item IDs to trace. None or empty =
+                          all planned and in_progress items.
+        max_depth:        Max traversal depth for transitive deps. Default 5.
+        include_soft:     Include soft dependencies. Default True.
+        include_external: Include external dependencies. Default True.
 
-    Returns a dict with:
-        items            – per-item trace with direct and transitive deps + risk flags
-        cycles           – any circular dependency paths found
-        critical_path    – longest blocking chain across the requested items
-        has_cycles       – boolean shortcut
-        summary          – aggregate counts (items analysed, total deps, external risks)
+    Returns items with direct/transitive deps, cycles, critical_path, summary.
     """
+    log.info("map_dependencies: item_ids=%s depth=%d", item_ids, max_depth)
+    resolved_ids = item_ids or []
+    if not resolved_ids:
+        resolved_ids = [b["id"] for b in BACKLOG if b.get("status") in ("planned", "in_progress")]
     return map_dependencies_impl(
         dep_list=DEPENDENCIES,
-        item_ids=item_ids,
+        item_ids=resolved_ids,
         max_depth=max_depth,
         include_soft=include_soft,
+        include_external=include_external,
     )
 
 
@@ -294,4 +333,10 @@ def map_dependencies(
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":  # pragma: no cover
-    mcp.run()
+    if len(sys.argv) > 1 and sys.argv[1] == "http":
+        port = int(sys.argv[2]) if len(sys.argv) > 2 else 8000
+        mcp.settings.host = "127.0.0.1"
+        mcp.settings.port = port
+        mcp.run(transport="sse")
+    else:
+        mcp.run()

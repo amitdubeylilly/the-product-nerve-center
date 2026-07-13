@@ -76,6 +76,7 @@ def _trace_item(
     graph: dict,
     max_depth: int,
     include_soft: bool,
+    include_external: bool = True,
 ) -> dict:
     """BFS from item_id, collecting direct and transitive dependencies."""
     direct: list[dict] = []
@@ -92,6 +93,8 @@ def _trace_item(
         for edge in graph.get(node, []):
             dep_type = edge["type"]
             if not include_soft and dep_type == "soft":
+                continue
+            if not include_external and dep_type == "external":
                 continue
             target = edge["target"]
             entry = {
@@ -190,6 +193,7 @@ def map_dependencies_impl(
     item_ids: list,
     max_depth: int = 5,
     include_soft: bool = True,
+    include_external: bool = True,  # if False, skip external dependency edges
 ) -> dict:
     """Trace dependency chains and surface risks for a set of backlog items.
 
@@ -234,7 +238,7 @@ def map_dependencies_impl(
     seen_cycle_keys: set[tuple] = set()
 
     for iid in item_ids:
-        trace = _trace_item(iid, graph, max_depth, include_soft)
+        trace = _trace_item(iid, graph, max_depth, include_soft, include_external)
         items_out.append(trace)
 
         cycle = _find_cycle(iid, graph)

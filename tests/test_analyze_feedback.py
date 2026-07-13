@@ -32,6 +32,7 @@ def _fb(
     customer_status="active",
     arr=10000,
     sentiment_score=0.0,
+    source="support_ticket",
 ):
     return {
         "id": id,
@@ -43,6 +44,7 @@ def _fb(
         "arr": arr,
         "sentiment_score": sentiment_score,
         "customer_name": f"Company {customer_id}",
+        "source": source,
     }
 
 
@@ -364,3 +366,36 @@ class TestAnalyzeFeedbackImpl:
         ]
         r = analyze_feedback_impl(entries)
         assert "bias_warnings" in r
+
+    def test_source_filter(self):
+        entries = [
+            _fb("FB-1", source="support_ticket", text="api slow"),
+            _fb("FB-2", source="nps_survey", text="api slow"),
+        ]
+        r = analyze_feedback_impl(entries, source="support_ticket")
+        assert r["total_entries_analyzed"] == 1
+
+    def test_time_range_start_and_end(self):
+        entries = [
+            _fb("FB-1", date="2026-01-01", text="api issue"),
+            _fb("FB-2", date="2026-06-01", text="api issue"),
+            _fb("FB-3", date="2026-12-01", text="api issue"),
+        ]
+        r = analyze_feedback_impl(entries, time_range={"start": "2026-03-01", "end": "2026-09-30"})
+        assert r["total_entries_analyzed"] == 1
+
+    def test_time_range_start_only(self):
+        entries = [
+            _fb("FB-1", date="2026-01-01", text="api issue"),
+            _fb("FB-2", date="2026-06-01", text="api issue"),
+        ]
+        r = analyze_feedback_impl(entries, time_range={"start": "2026-03-01"})
+        assert r["total_entries_analyzed"] == 1
+
+    def test_time_range_end_only(self):
+        entries = [
+            _fb("FB-1", date="2026-01-01", text="api issue"),
+            _fb("FB-2", date="2026-06-01", text="api issue"),
+        ]
+        r = analyze_feedback_impl(entries, time_range={"end": "2026-03-31"})
+        assert r["total_entries_analyzed"] == 1

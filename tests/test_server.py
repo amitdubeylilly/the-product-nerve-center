@@ -94,8 +94,8 @@ class TestToolWrappers:
         assert "ranked_items" in r
         assert len(r["ranked_items"]) <= 2
 
-    def test_prioritize_backlog_squad_filter(self):
-        r = server.prioritize_backlog(squad_filter="platform", top_n=5)
+    def test_prioritize_backlog_with_filters_dict(self):
+        r = server.prioritize_backlog(filters={"squad": "platform"}, top_n=3)
         for item in r["ranked_items"]:
             assert item["squad"] == "platform"
 
@@ -123,6 +123,8 @@ class TestToolWrappers:
         assert "items" in r
         assert r["items"][0]["item_id"] == backlog_id
 
-    def test_map_dependencies_empty_item_ids_returns_error(self):
+    def test_map_dependencies_empty_item_ids_defaults_to_planned(self):
+        """Server-level: empty item_ids resolves to all planned/in_progress items."""
         r = server.map_dependencies(item_ids=[])
-        assert "error" in r
+        assert "items" in r
+        # impl-level validation still raises error; server fills ids before calling

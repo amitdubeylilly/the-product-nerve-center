@@ -224,6 +224,21 @@ class TestTraceItem:
         # chain_len = 3 → long_chain
         assert any(f["type"] == "long_chain" for f in result["risk_flags"])
 
+    def test_include_external_false_filters_external_deps(self):
+        g = _build_graph(
+            [_edge("A", "B", "blocks"), _edge("A", "EXT-1", "external", "Team X", None)]
+        )
+        result = _trace_item("A", g, max_depth=5, include_soft=True, include_external=False)
+        direct_ids = {d["id"] for d in result["direct_dependencies"]}
+        assert "B" in direct_ids
+        assert "EXT-1" not in direct_ids
+
+    def test_include_external_true_keeps_external_deps(self):
+        g = _build_graph([_edge("A", "EXT-1", "external", "Team X", None)])
+        result = _trace_item("A", g, max_depth=5, include_soft=True, include_external=True)
+        direct_ids = {d["id"] for d in result["direct_dependencies"]}
+        assert "EXT-1" in direct_ids
+
 
 # ===========================================================================
 # _critical_path

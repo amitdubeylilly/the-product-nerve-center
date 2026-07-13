@@ -81,6 +81,8 @@ def prioritize_backlog_impl(
     include_done: bool = False,
     include_dependency_check: bool = True,
     top_n: Optional[int] = None,
+    deps: Optional[list] = None,  # dependency data; accepted for interface compat
+    filters: Optional[dict] = None,  # alternate filter dict; overrides squad_filter
 ) -> dict:
     """Score and rank backlog items, returning flags and score breakdowns.
 
@@ -101,6 +103,10 @@ def prioritize_backlog_impl(
     """
     done_ids = {item["id"] for item in backlog if item.get("status") == "done"}
     all_ids = {item["id"] for item in backlog}
+
+    # filters dict overrides individual params when present
+    if filters:
+        squad_filter = filters.get("squad", squad_filter)
 
     results = []
     for item in backlog:

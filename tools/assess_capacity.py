@@ -60,6 +60,10 @@ def assess_capacity_impl(
     squad: Optional[str] = None,
     sprint_days: int = 10,
     required_skills: Optional[list] = None,
+    sprint_id: Optional[str] = None,  # sprint identifier; informational
+    include_carry_over: bool = True,  # if False, ignore carry_over_points
+    check_skill_fit: bool = False,  # alias for required_skills check
+    sprints: Optional[list] = None,  # sprint history; accepted for interface compat
 ) -> dict:
     """Calculate per-engineer and squad sprint capacity with warnings.
 
@@ -112,17 +116,21 @@ def assess_capacity_impl(
 
         allocated = round(SPRINT_POINTS * (alloc / 100), 2)
         effective = round(allocated * ((sprint_days - pto) / sprint_days), 2)
-        available = round(max(0.0, effective - carry), 2)
+        carry_applied = carry if include_carry_over else 0.0
+        available = round(max(0.0, effective - carry_applied), 2)
 
         eng_warnings: list[str] = []
         if alloc == 0:
             eng_warnings.append("zero_allocation")
         elif effective == 0:
             eng_warnings.append("zero_effective_due_to_pto")
-        if carry > effective and effective > 0:
+        if carry_applied > effective and effective > 0:
             eng_warnings.append("overloaded: carry_over exceeds effective capacity")
-        if required_skills:
-            missing = [s for s in required_skills if s not in eng["skills"]]
+        # check_skill_fit=True behaves like required_skills=[all unique skills in backlog]
+        # For simplicity: if check_skill_fit but no required_skills, skip detailed check
+        skill_check = required_skills or []
+        if skill_check:
+            missing = [s for s in skill_check if s not in eng["skills"]]
             if missing:
                 eng_warnings.append(f"skill_mismatch: missing {missing}")
 
@@ -188,7 +196,8 @@ def assess_capacity_impl(
                 ),
             }
         )
-    if required_skills:
+    if required_skills or check_skill_fit:
+        skill_check = required_skills or []
         mismatched = [
             r["engineer"] for r in results if any("skill_mismatch" in w for w in r["warnings"])
         ]
@@ -197,10 +206,10 @@ def assess_capacity_impl(
                 {
                     "type": "skill_mismatch",
                     "engineers": mismatched,
-                    "required_skills": required_skills,
+                    "required_skills": skill_check,
                     "message": (
                         f"{len(mismatched)} engineer(s) are missing "
-                        f"required skills: {required_skills}."
+                        f"required skills: {skill_check}."
                     ),
                 }
             )

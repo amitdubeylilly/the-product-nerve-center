@@ -310,6 +310,8 @@ def analyze_feedback_impl(
     include_churned: bool = True,
     top_n: int = 10,
     min_sentiment: Optional[float] = None,
+    source: Optional[str] = None,  # filter by feedback channel
+    time_range: Optional[dict] = None,  # {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}
 ) -> dict:
     """Analyse customer feedback, extract themes, and surface data-quality warnings.
 
@@ -334,6 +336,15 @@ def analyze_feedback_impl(
     filtered = list(feedback)
     if customer_tier:
         filtered = [f for f in filtered if f.get("customer_tier") == customer_tier]
+    if source:
+        filtered = [f for f in filtered if f.get("source") == source]
+    if time_range:
+        start = time_range.get("start")
+        end = time_range.get("end")
+        if start:
+            filtered = [f for f in filtered if (f.get("date") or "") >= start]
+        if end:
+            filtered = [f for f in filtered if (f.get("date") or "") <= end]
     if not include_churned:
         filtered = [f for f in filtered if f.get("customer_status") != "churned"]
     if min_sentiment is not None:

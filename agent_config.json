@@ -1,0 +1,12 @@
+{
+    "challenge_id": "pm-agent-challenge-1",
+    "type": "python",
+    "runtime_version": "3.11",
+    "entry": "server.py",
+    "run_command": "python server.py",
+    "requirements": "requirements.txt",
+    "env_file": "env_vars.json",
+    "data_env_var": "PM_AGENT_DATA",
+    "required_env": ["MCP_DATA_URL"],
+    "timeout_seconds": 30
+}
