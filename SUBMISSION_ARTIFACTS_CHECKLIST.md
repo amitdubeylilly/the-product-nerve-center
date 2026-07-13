@@ -19,10 +19,10 @@ This checklist tracks what is complete in-repo versus what must be completed in 
 
 ## C. Oracle Discovery Evidence
 
-- [ ] Real oracle capacity records captured and stored in workbook table
-- [ ] capacity_formula_fitter executed with real records
-- [ ] Formula winner and rationale recorded
-- [ ] Dependency discovery observations captured from oracle calls
+- [x] Real oracle capacity records captured and stored in workbook table (8 engineers)
+- [x] Capacity formula verified against oracle records — direct recomputation reproduces all 8 available_points plus squad/team totals exactly (ORACLE_VERIFICATION_WORKBOOK.md §4)
+- [x] Formula winner and rationale recorded (multiplicative PTO, carry-over after proration)
+- [x] Dependency discovery observations captured from oracle calls (12 edges: 8 blocks, 2 soft, 2 external)
 
 ## D. Chat Export Artifact (submission workflow)
 
@@ -32,12 +32,14 @@ This checklist tracks what is complete in-repo versus what must be completed in 
 
 ## E. Final Submission Readiness
 
-- [x] Working tree clean
-- [x] Latest branch pushed to origin/main
+- [ ] File-based revert + doc updates committed (working tree clean)
+- [ ] Latest branch pushed to origin/main
 - [ ] Pre-submission validator run and archived
 - [ ] Final portal submission completed
 
 ## Notes
 
-Items in sections C and D require access to historical or active oracle chat outputs.
-They cannot be auto-generated solely from the current repository files.
+Section C is complete: discovery evidence is recorded in ORACLE_VERIFICATION_WORKBOOK.md.
+Section D (chat export) requires exporting the Phase 1 discovery / Phase 2 planning
+conversation from Claude and attaching it per the submission portal — it is a scored
+Investigation Rigor artifact and cannot be generated from repo files alone.
