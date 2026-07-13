@@ -15,9 +15,9 @@ Read these first in new chats:
 
 - SKILL.md
 - KNOWLEDGE.md
-- PNC_Challenge_data/mcp_starter/README.md
+- challenge/mcp_starter/README.md
 - data/data_dictionary.md
-- PNC_Challenge_data/oracle_connection/README.md
+- challenge/oracle_connection/README.md
 
 ## Non-Negotiable Constraints
 

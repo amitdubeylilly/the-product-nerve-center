@@ -13,9 +13,9 @@ Quickly establish the challenge constraints and avoid invalid implementations.
 ## Read Order
 1. SKILL.md
 2. KNOWLEDGE.md
-3. PNC_Challenge_data/mcp_starter/README.md
+3. challenge/mcp_starter/README.md
 4. data/data_dictionary.md
-5. PNC_Challenge_data/oracle_connection/README.md
+5. challenge/oracle_connection/README.md
 
 ## Required Deliverable
 Implement exactly four MCP tools:
