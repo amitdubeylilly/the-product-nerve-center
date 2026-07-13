@@ -3,13 +3,8 @@ Shared pytest fixtures.
 """
 
 import json
-import os
 
 import pytest
-
-# server.py fetches roster/deps from the data server at import time when
-# MCP_DATA_URL is set. Ensure tests never touch the network at import.
-os.environ.pop("MCP_DATA_URL", None)
 
 
 @pytest.fixture

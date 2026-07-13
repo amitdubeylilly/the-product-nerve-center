@@ -10,18 +10,17 @@ Exposes four tools that help a PM make data-driven sprint decisions:
 
 DATA CONTRACT
 -------------
-Local files (product_backlog, customer_feedback, sprint_history) load from
-PM_AGENT_DATA (fallback: ./data for local dev). team_roster and dependency_map
-are fetched at startup from the MCP data server (MCP_DATA_URL); if it is
-unreachable we fall back to local files, then to empty lists, so the server
-always starts and the tools degrade gracefully.
+All data is read from PM_AGENT_DATA (fallback: ./data for local dev). Per the
+challenge brief the server does NOT call the pm-data-agent / oracle at runtime:
+the capacity and dependency rules were reverse-engineered during the discovery
+phase and are embodied as standalone logic in the tool modules. team_roster and
+dependency_map are read from the mounted path, with the tiny sample_* files as a
+local smoke-test fallback; missing roster/deps degrade to empty lists (no crash).
 """
 
-import asyncio
 import json
 import logging
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Optional
@@ -77,167 +76,18 @@ def _load_optional(filename: str) -> list:
         return []
 
 
-def _resolve(fetched: list, primary: str, fallback: str) -> list:
-    """Prefer data fetched from the server; else a local primary/fallback file; else []."""
-    return fetched or _load_optional(primary) or _load_optional(fallback)
+def _load_first(primary: str, fallback: str) -> list:
+    """Load primary if present, else fallback, else [] (never raises)."""
+    return _load_optional(primary) or _load_optional(fallback)
 
 
 # ---------------------------------------------------------------------------
-# Remote data server (pm-data-agent / "Nimbus"): team_roster + dependency_map
-# are served here, not shipped as files. We fetch them at startup and pass them
-# into the tool impls. The fetch is best-effort: any failure or timeout degrades
-# to a local-file fallback (dev) or empty lists, so the server always starts.
-# ---------------------------------------------------------------------------
-_FETCH_BUDGET_SECONDS = 20  # hard cap so startup never exceeds the grader timeout
-
-
-def _parse_members(text: str) -> list:
-    """'Team members: Rao, Mira, ...' -> ['Rao', 'Mira', ...]."""
-    if ":" not in text:
-        return []
-    return [n.strip() for n in text.split(":", 1)[1].split(",") if n.strip()]
-
-
-def _parse_capacity(text: str) -> dict:
-    """'... Capacity: 21 pts, Allocation: 100%, PTO this sprint: 0 days'."""
-    out: dict = {}
-    cap = re.search(r"Capacity:\s*([\d.]+)", text)
-    alloc = re.search(r"Allocation:\s*(\d+)", text)
-    pto = re.search(r"PTO[^:]*:\s*(\d+)", text)
-    if cap:
-        out["total_capacity_points"] = float(cap.group(1))
-    if alloc:
-        out["sprint_allocation_percent"] = int(alloc.group(1))
-    if pto:
-        out["pto_days_this_sprint"] = int(pto.group(1))
-    return out
-
-
-def _parse_profile(text: str) -> dict:
-    """'... Role: engineer, Squad: core'."""
-    role = re.search(r"Role:\s*([^,|]+)", text)
-    squad = re.search(r"Squad:\s*([^,|]+)", text)
-    return {
-        "role": role.group(1).strip() if role else "",
-        "squad": squad.group(1).strip() if squad else "",
-    }
-
-
-def _parse_skills(text: str) -> list:
-    """'... Skills: backend, infra' -> ['backend', 'infra']."""
-    if "Skills:" not in text:
-        return []
-    return [s.strip() for s in text.split("Skills:", 1)[1].split(",") if s.strip()]
-
-
-def _parse_sprint(text: str) -> dict:
-    """Parse assignments + carry-over items from the sprint string, e.g.
-    '... Sprint assignments: NB-108 | Carry-over: NB-108 (5pts, in_progress)'.
-    """
-    assign_seg, carry_seg = text, ""
-    if "Carry-over:" in text:
-        assign_seg, carry_seg = text.split("Carry-over:", 1)
-    assignments: list = []
-    if "Sprint assignments:" in assign_seg:
-        raw = assign_seg.split("Sprint assignments:", 1)[1].strip(" |")
-        if raw and raw.lower() != "none":
-            assignments = [x.strip() for x in raw.split(",") if x.strip()]
-    carry: list = []
-    for m in re.finditer(r"([A-Za-z]+-\d+)\s*\((\d+)\s*pts?,\s*([^)]*)\)", carry_seg):
-        carry.append({"id": m.group(1), "points": int(m.group(2)), "status": m.group(3).strip()})
-    return {"current_sprint_assignments": assignments, "carry_over_items": carry}
-
-
-def _parse_item_deps(item_id: str, text: str) -> list:
-    """Best-effort parse of one item's outgoing dependency edges into the
-    dependency_map schema. Returns [] when the item has none.
-
-    NOTE: only the 'no dependencies' response was observable during development;
-    the populated form is parsed defensively (a target id like 'NB-###'/'EXT-###',
-    a type keyword, optional 'team=' / 'eta='). VERIFY against the live server on
-    VPN (see README) and adjust if the real format differs. Unparseable text
-    yields [] rather than raising.
-    """
-    if not text or "no outgoing dependencies" in text.lower():
-        return []
-    edges: list = []
-    for frag in re.split(r"[;\n]", text):
-        ids = re.findall(r"\b[A-Za-z]{2,}-\d+\b", frag)
-        targets = [x for x in ids if x != item_id]
-        if not targets:
-            continue
-        dtype = "blocks"
-        for kw in ("external", "soft", "blocks"):
-            if kw in frag.lower():
-                dtype = kw
-                break
-        team = re.search(r"team[=:]\s*([^,)\]]+)", frag, re.I)
-        eta = re.search(r"eta[=:]\s*([^,)\]]+)", frag, re.I)
-        edges.append(
-            {
-                "source_item_id": item_id,
-                "target_item_id": targets[0],
-                "dependency_type": dtype,
-                "external_team": team.group(1).strip() if team else None,
-                "external_eta": eta.group(1).strip() if eta else None,
-            }
-        )
-    return edges
-
-
-def _assemble_engineer(name: str, cap: dict, prof: dict, skills: list, sprint: dict) -> dict:
-    """Combine per-engineer responses into one team_roster record."""
-    rec: dict = {"name": name}
-    rec.update(prof)
-    rec.update(cap)
-    rec["skills"] = skills
-    rec.update(sprint)
-    return rec
-
-
-async def _afetch(url: str, email: str, item_ids: list):  # pragma: no cover
-    """Fetch roster + dependency edges from the MCP data server (network I/O)."""
-    from mcp import ClientSession
-    from mcp.client.streamable_http import streamablehttp_client
-
-    headers = {"X-User-Email": email} if email else None
-    roster: list = []
-    deps: list = []
-    async with streamablehttp_client(url, headers=headers) as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-
-            async def _text(tool: str, args: dict) -> str:
-                res = await session.call_tool(tool, args)
-                return "\n".join(c.text for c in res.content if getattr(c, "type", "") == "text")
-
-            for name in _parse_members(await _text("list_team_members", {})):
-                cap = _parse_capacity(await _text("get_engineer_capacity", {"name": name}))
-                prof = _parse_profile(await _text("get_engineer_profile", {"name": name}))
-                skills = _parse_skills(await _text("get_engineer_skills", {"name": name}))
-                sprint = _parse_sprint(await _text("get_engineer_sprint", {"name": name}))
-                roster.append(_assemble_engineer(name, cap, prof, skills, sprint))
-            for iid in item_ids:
-                raw = await _text("get_item_dependencies", {"item_id": iid})
-                deps.extend(_parse_item_deps(iid, raw))
-    return roster, deps
-
-
-def _fetch_from_data_server(item_ids: list):  # pragma: no cover
-    """Best-effort synchronous wrapper around _afetch. Never raises."""
-    url = os.environ.get("MCP_DATA_URL")
-    if not url:  # not configured (e.g. local pytest) -> skip network entirely
-        return [], []
-    email = os.environ.get("MCP_USER_EMAIL", "")
-    try:
-        return asyncio.run(asyncio.wait_for(_afetch(url, email, item_ids), _FETCH_BUDGET_SECONDS))
-    except Exception as exc:
-        log.warning("Data server fetch failed (%s); using local/empty fallback.", exc)
-        return [], []
-
-
-# ---------------------------------------------------------------------------
-# Startup: load local files, then fetch roster + deps from the data server.
+# Startup: load all datasets from PM_AGENT_DATA (fallback ./data).
+#
+# Per the challenge brief the server does NOT call the pm-data-agent / oracle at
+# runtime. team_roster / dependency_map are read from the mounted data path,
+# with the tiny sample_* files as a local smoke-test fallback; missing roster or
+# dependency files degrade to empty lists rather than crashing.
 # ---------------------------------------------------------------------------
 try:
     BACKLOG = _load("product_backlog.json")
@@ -247,10 +97,8 @@ except FileNotFoundError as exc:  # pragma: no cover
     print(f"STARTUP ERROR: {exc}", file=sys.stderr)
     sys.exit(1)
 
-_item_ids = [b.get("id") for b in BACKLOG]
-_fetched_roster, _fetched_deps = _fetch_from_data_server(_item_ids)
-ROSTER = _resolve(_fetched_roster, "team_roster.json", "sample_roster.json")
-DEPENDENCIES = _resolve(_fetched_deps, "dependency_map.json", "sample_dependencies.json")
+ROSTER = _load_first("team_roster.json", "sample_roster.json")
+DEPENDENCIES = _load_first("dependency_map.json", "sample_dependencies.json")
 log.info(
     "Loaded data: backlog=%d, feedback=%d, sprints=%d, roster=%d, dependencies=%d",
     len(BACKLOG),

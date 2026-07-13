@@ -28,7 +28,7 @@ the-product-nerve-center/
 │   ├── assess_capacity.py
 │   └── map_dependencies.py
 ├── data/                # local sample data for development
-├── tests/               # 187 tests, 100% branch coverage
+├── tests/               # 195 tests, 100% branch coverage
 └── pyproject.toml       # black / isort / mypy / pytest config
 ```
 
@@ -51,7 +51,7 @@ pytest
 - Runtime data contract: reads from `PM_AGENT_DATA` with `./data` fallback for local development.
 - Runtime safety: no network/oracle calls in submitted server runtime path.
 - Tool contract: exact required tool names are exposed via `server.py` and `olympics.json`.
-- Quality status: 187 tests passing with 100% line and branch coverage.
+- Quality status: 195 tests passing with 100% line and branch coverage.
 
 ## Tools
 

@@ -1,4 +1,3 @@
 # Runtime dependencies only — installed by the evaluation agent
 mcp==1.28.1
 pydantic==2.13.4
-httpx==0.28.1
